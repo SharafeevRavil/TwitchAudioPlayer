@@ -3,16 +3,117 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:TwitchAudioPlayerWPF"
         xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:viewModels="clr-namespace:TwitchAudioPlayerWPF.ViewModels"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="450" Width="800"
+        Style="{StaticResource MaterialDesignWindow}"
+        WindowStyle="None"
+        d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel, IsDesignTimeCreatable=True}">
+    <WindowChrome.WindowChrome>
+        <WindowChrome
+            CaptionHeight="0"
+            ResizeBorderThickness="5" />
+    </WindowChrome.WindowChrome>
+
     <b:Interaction.Triggers>
         <b:EventTrigger EventName="Loaded">
             <b:InvokeCommandAction Command="{Binding WindowLoadedCommand}" />
         </b:EventTrigger>
     </b:Interaction.Triggers>
-    <Grid>
+    
+    <Window.Resources>
+    <Style x:Key="CustomCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}" x:Name="border" 
+                                CornerRadius="{Binding Path=(materialDesign:ButtonAssist.CornerRadius), RelativeSource={RelativeSource TemplatedParent}}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                            <materialDesign:Ripple Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Focusable="False"
+                                        ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                        HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                        VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                        Padding="{TemplateBinding Padding}"
+                                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                                <materialDesign:Ripple.Clip>
+                                    <MultiBinding Converter="{StaticResource BorderClipConverter}">
+                                        <Binding ElementName="border" Path="ActualWidth" />
+                                        <Binding ElementName="border" Path="ActualHeight" />
+                                        <Binding ElementName="border" Path="CornerRadius" />
+                                        <Binding ElementName="border" Path="BorderThickness" />
+                                    </MultiBinding>
+                                </materialDesign:Ripple.Clip>
+                            </materialDesign:Ripple>
+                        </Border>
+                        
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter Property="Background" TargetName="border" Value="#E81123" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</Window.Resources>
+    
+    <materialDesign:Card>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <!-- Панель заголовка -->
+            <Grid Background="{DynamicResource MaterialDesignPaper}" Grid.Row="0" MouseDown="TitleBar_MouseDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-    </Grid>
+                <TextBlock Text="Twitch Audio Player" VerticalAlignment="Center" Margin="10, 5" />
+                <Button Command="{Binding MinimizeCommand}" Grid.Column="1" Width="50" Height="40"
+                        Style="{StaticResource MaterialDesignFlatButton}">
+                    <materialDesign:PackIcon Kind="WindowMinimize" />
+                </Button>
+                <Button Command="{Binding MaximizeCommand}" Grid.Column="2" Width="50" Height="40"
+                        Style="{StaticResource MaterialDesignFlatButton}">
+                    <materialDesign:PackIcon Kind="{Binding MaximizeIcon}" />
+                </Button>
+                <Button Command="{Binding CloseCommand}" Grid.Column="3" Width="50" Height="40"
+                        Style="{StaticResource CustomCloseButtonStyle}">
+                    <materialDesign:PackIcon Kind="Close" />
+                </Button>
+            </Grid>
+            <!-- Основное содержимое -->
+            <Grid Grid.Row="1">
+                <!-- сам контент -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="Введите текст:" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBox Width="200" Margin="0,0,10,0" />
+                        <Button Content="Нажми меня" Style="{StaticResource MaterialDesignRaisedButton}"
+                                Command="{Binding SomeCommand}" />
+                    </StackPanel>
+                    <ListBox Grid.Row="1" Margin="10">
+                        <ListBoxItem Content="Элемент 1" />
+                        <ListBoxItem Content="Элемент 2" />
+                        <ListBoxItem Content="Элемент 3" />
+                    </ListBox>
+                </Grid>
+            </Grid>
+        </Grid>
+    </materialDesign:Card>
+
 </Window>

@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using System.Windows.Input;
 using TwitchAudioPlayerWPF.ViewModels;
 
 namespace TwitchAudioPlayerWPF.Views;
@@ -12,11 +13,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = mainViewModel;
+        mainViewModel.SetWindow(this);
     }
 
-    private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
+    private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        throw new NotImplementedException();
+        if (e.ChangedButton == MouseButton.Left) DragMove();
     }
 }
-

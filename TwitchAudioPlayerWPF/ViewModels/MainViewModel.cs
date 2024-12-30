@@ -1,26 +1,49 @@
-﻿using System.ComponentModel;
-using System.Windows.Input;
+﻿using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using TwitchAudioPlayer.Clients.Clients;
-using TwitchAudioPlayerWPF.Utils;
-using TwitchAudioPlayerWPF.Utils.Commands;
 
 namespace TwitchAudioPlayerWPF.ViewModels;
 
-public class MainViewModel
+public partial class MainViewModel(VkClient vkClient) : ObservableObject
 {
-    private readonly VkClient _vkClient;
+    private Window? _window;
 
-    public MainViewModel(VkClient vkClient)
+    public void SetWindow(Window window)
     {
-        _vkClient = vkClient;
-        WindowLoadedCommand = new AsyncRelayCommand(OnWindowLoaded);
+        _window = window;
+        _window.StateChanged += OnWindowStateChanged;
     }
 
-    public ICommand WindowLoadedCommand { get; }
-
-    private async Task OnWindowLoaded()
+    [RelayCommand]
+    private async Task OnWindowLoadedAsync()
     {
-
-        var list = await _vkClient.GetAudioListAsync("https://vk.com/audios869197500");
+        // var list = await vkClient.GetAudioListAsync("https://vk.com/audios869197500");
     }
+
+    [RelayCommand]
+    private void Minimize()
+    {
+        if (_window == null) return;
+        _window.WindowState = WindowState.Minimized;
+    }
+
+    [ObservableProperty] private string? _maximizeIcon = "WindowMaximize";
+
+    [RelayCommand]
+    private void Maximize()
+    {
+        if (_window == null) return;
+        _window.WindowState = _window.WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+    }
+
+    private void OnWindowStateChanged(object? sender, EventArgs e) =>
+        MaximizeIcon = _window is { WindowState: WindowState.Maximized }
+            ? "WindowRestore"
+            : "WindowMaximize";
+
+    [RelayCommand]
+    private static void Close() => Application.Current.Shutdown();
 }
