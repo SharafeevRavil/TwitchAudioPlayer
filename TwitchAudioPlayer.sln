@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayerWPF", "TwitchAudioPlayerWPF\TwitchAudioPlayerWPF.csproj", "{573D21F0-16E1-4B26-90F9-4143CF04C3DF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayer.Clients", "TwitchAudioPlayer.Clients\TwitchAudioPlayer.Clients.csproj", "{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{573D21F0-16E1-4B26-90F9-4143CF04C3DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{573D21F0-16E1-4B26-90F9-4143CF04C3DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{573D21F0-16E1-4B26-90F9-4143CF04C3DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{573D21F0-16E1-4B26-90F9-4143CF04C3DF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
