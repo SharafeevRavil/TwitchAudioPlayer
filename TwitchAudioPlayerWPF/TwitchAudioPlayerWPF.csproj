@@ -20,11 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\TwitchAudioPlayer.Clients\TwitchAudioPlayer.Clients.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Models\" />
+      <ProjectReference Include="..\TwitchAudioPlayer.Domain\TwitchAudioPlayer.Domain.csproj" />
     </ItemGroup>
 
     <ItemGroup>

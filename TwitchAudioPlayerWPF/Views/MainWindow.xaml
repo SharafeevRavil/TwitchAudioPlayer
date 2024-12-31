@@ -6,11 +6,12 @@
         xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:viewModels="clr-namespace:TwitchAudioPlayerWPF.ViewModels"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:views="clr-namespace:TwitchAudioPlayerWPF.Views"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800"
         Style="{StaticResource MaterialDesignWindow}"
         WindowStyle="None"
-        d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel, IsDesignTimeCreatable=True}">
+        d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel, IsDesignTimeCreatable=True}">
     <WindowChrome.WindowChrome>
         <WindowChrome
             CaptionHeight="0"
@@ -78,15 +79,15 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Text="Twitch Audio Player" VerticalAlignment="Center" Margin="10, 5" />
-                <Button Command="{Binding MinimizeCommand}" Grid.Column="1" Width="50" Height="40"
+                <Button Click="Minimize_Click" Grid.Column="1" Width="50" Height="40"
                         Style="{StaticResource MaterialDesignFlatButton}">
                     <materialDesign:PackIcon Kind="WindowMinimize" />
                 </Button>
-                <Button Command="{Binding MaximizeCommand}" Grid.Column="2" Width="50" Height="40"
+                <Button Click="Maximize_Click" Grid.Column="2" Width="50" Height="40"
                         Style="{StaticResource MaterialDesignFlatButton}">
-                    <materialDesign:PackIcon Kind="{Binding MaximizeIcon}" />
+                    <materialDesign:PackIcon x:Name="MaximizeIcon" Kind="WindowMaximize" />
                 </Button>
-                <Button Command="{Binding CloseCommand}" Grid.Column="3" Width="50" Height="40"
+                <Button Click="Close_Click" Grid.Column="3" Width="50" Height="40"
                         Style="{StaticResource CustomCloseButtonStyle}">
                     <materialDesign:PackIcon Kind="Close" />
                 </Button>
@@ -96,21 +97,10 @@
                 <!-- сам контент -->
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-                        <TextBlock Text="Введите текст:" VerticalAlignment="Center" Margin="0,0,10,0" />
-                        <TextBox Width="200" Margin="0,0,10,0" />
-                        <Button Content="Нажми меня" Style="{StaticResource MaterialDesignRaisedButton}"
-                                Command="{Binding SomeCommand}" />
-                    </StackPanel>
-                    <ListBox Grid.Row="1" Margin="10">
-                        <ListBoxItem Content="Элемент 1" />
-                        <ListBoxItem Content="Элемент 2" />
-                        <ListBoxItem Content="Элемент 3" />
-                    </ListBox>
+                    <ContentControl x:Name="AudioPanel"/>
                 </Grid>
             </Grid>
         </Grid>

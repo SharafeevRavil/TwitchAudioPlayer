@@ -82,8 +82,11 @@ public partial class VkClient /* : Client*/
             });
             offset += audio.Count;
             audioList.AddRange(audio);
-            
-            if (audio.Count < fetchCount)
+
+
+            // if we fetch less than 20% of the requested count, we stop fetching
+            const double minFetchToContinueFetching = fetchCount * 0.2; 
+            if (audio.Count < minFetchToContinueFetching)
                 break;
         }
         

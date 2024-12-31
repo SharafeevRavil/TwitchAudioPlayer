@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using TwitchAudioPlayer.Clients.Clients;
+using TwitchAudioPlayer.Domain.Services;
 using TwitchAudioPlayerWPF.Utils;
 using TwitchAudioPlayerWPF.ViewModels;
 using TwitchAudioPlayerWPF.Views;
@@ -35,12 +36,16 @@ public partial class App : Application
         // Register Services
         services.AddTransient<IVkAuthStorage, VkAuthStorage>();
         services.AddSingleton<VkClient, VkClient>();
+        services.AddSingleton<AudioService, AudioService>();
 
         // Register ViewModels
-        services.AddSingleton<MainViewModel, MainViewModel>();
+        services.AddSingleton<MainWindowViewModel, MainWindowViewModel>();
+        services.AddTransient<VkAudioViewModel, VkAudioViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();
+        services.AddTransient<VkAudioView, VkAudioView>();
+        services.AddTransient<AudioTrackControl, AudioTrackControl>();
     }
     
     protected override void OnExit(ExitEventArgs exitEventArgs)
