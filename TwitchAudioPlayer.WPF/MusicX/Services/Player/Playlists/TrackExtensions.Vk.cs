@@ -1,0 +1,56 @@
+﻿using Microsoft.Extensions.DependencyInjection;
+using MusicX.Core.Models;
+using MusicX.Shared.Player;
+using VkNet.Abstractions;
+
+namespace TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
+
+public static partial class TrackExtensions
+{
+    public static PlaylistTrack ToTrack(this Audio audio)
+    {
+        return ToTrack(audio, null);
+    }
+
+    public static PlaylistTrack ToTrack(this Audio audio, Playlist? playlist)
+    {
+        TrackArtist[] mainArtists;
+        if (audio.MainArtists is null || !audio.MainArtists.Any())
+            mainArtists = new[] { new TrackArtist(audio.Artist, null) };
+        else
+            mainArtists = audio.MainArtists.Select(ToTrackArtist).ToArray();
+
+        var isLiked = audio.OwnerId == StaticService.Container.GetRequiredService<IVkApi>().UserId!.Value;
+
+        TrackData trackData;
+
+        if (audio.Url.EndsWith(".mp3"))
+            trackData = new BoomTrackData(audio.Url, false, true, TimeSpan.FromSeconds(audio.Duration),
+                audio.Id.ToString());
+        else
+            trackData =
+                new VkTrackData(audio.Url, isLiked, audio.IsExplicit, audio.HasLyrics,
+                    TimeSpan.FromSeconds(audio.Duration), new IdInfo(
+                        audio.Id,
+                        audio.OwnerId, audio.AccessKey), audio.TrackCode, audio.ParentBlockId,
+                    playlist is null ? null : new IdInfo(playlist.Id, playlist.OwnerId, playlist.AccessKey),
+                    audio.MainColor);
+
+        return new PlaylistTrack(audio.Title, audio.Subtitle,
+            audio.Album is null
+                ? new UnknownAlbumId(audio.Cover?.ToString(), audio.Thumb?.Photo1200 ?? audio.Thumb?.Photo600)
+                : audio.Album.ToAlbumId(), mainArtists,
+            audio.FeaturedArtists?.Select(ToTrackArtist).ToArray() ?? Array.Empty<TrackArtist>(), trackData);
+    }
+
+    public static TrackArtist ToTrackArtist(this MainArtist artist)
+    {
+        return new TrackArtist(artist.Name, new ArtistId(artist.Id, ArtistIdType.Vk));
+    }
+
+    public static VkAlbumId ToAlbumId(this Album album)
+    {
+        return new VkAlbumId(album.Id, album.OwnerId, album.AccessKey, album.Title, album.Cover?.ToString(),
+            album.Thumb?.Photo1200 ?? album.Thumb?.Photo600);
+    }
+}

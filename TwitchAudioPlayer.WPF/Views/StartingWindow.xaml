@@ -1,0 +1,30 @@
+<Window x:Class="TwitchAudioPlayer.WPF.Views.StartingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        mc:Ignorable="d"
+        Title="StartingWindow" Height="450" Width="800"
+        Style="{StaticResource MaterialDesignWindow}"
+        WindowStyle="None"
+        Loaded="Window_Loaded">
+    <WindowChrome.WindowChrome>
+        <WindowChrome
+            CaptionHeight="0"
+            ResizeBorderThickness="5" />
+    </WindowChrome.WindowChrome>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Image Grid.Row="0" Opacity="0.7" Stretch="UniformToFill"
+               Source="pack://application:,,,/Assets/newyear/start_show.png" />
+        <TextBlock Grid.Row="0" Text="Загрузка" FontWeight="Bold" FontSize="48" VerticalAlignment="Center"
+                   TextAlignment="Center"
+                   Foreground="{DynamicResource MaterialDesignBody}" />
+
+        <ProgressBar IsIndeterminate="True" Grid.Row="1" />
+    </Grid>
+</Window>

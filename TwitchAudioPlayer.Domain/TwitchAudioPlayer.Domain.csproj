@@ -7,7 +7,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\TwitchAudioPlayer.Clients\TwitchAudioPlayer.Clients.csproj" />
+        <ProjectReference Include="..\TwitchAudioPlayer.Clients\TwitchAudioPlayer.Clients.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Helpers\"/>
+        <Folder Include="Models\"/>
     </ItemGroup>
 
 </Project>

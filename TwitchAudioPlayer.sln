@@ -1,10 +1,20 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayerWPF", "TwitchAudioPlayerWPF\TwitchAudioPlayerWPF.csproj", "{573D21F0-16E1-4B26-90F9-4143CF04C3DF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayer.WPF", "TwitchAudioPlayer.WPF\TwitchAudioPlayer.WPF.csproj", "{573D21F0-16E1-4B26-90F9-4143CF04C3DF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayer.Clients", "TwitchAudioPlayer.Clients\TwitchAudioPlayer.Clients.csproj", "{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayer.Domain", "TwitchAudioPlayer.Domain\TwitchAudioPlayer.Domain.csproj", "{94DA3531-3D7D-4353-8C60-42667EC01CFF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FFMediaToolkit", "FFMediaToolkit\FFMediaToolkit.csproj", "{36EC5452-6C01-4E5E-905C-B7A67F713206}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MusicX.Core", "MusicX.Core\MusicX.Core.csproj", "{891C5C5A-15D8-400B-BDDA-0B93A42F8E35}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MusicX.Shared", "MusicX.Shared\MusicX.Shared.csproj", "{931F6D3B-9F92-4464-AFF6-176AA52F76C4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VkNet.AudioBypassService", "VkNet.AudioBypassService\VkNet.AudioBypassService.csproj", "{5B981C6D-44FA-4370-9285-EB08C5E99FFA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VkNet.Extensions.DependencyInjection", "VkNet.Extensions.DependencyInjection\VkNet.Extensions.DependencyInjection.csproj", "{78EAB489-A696-4135-B346-47F94DE19F7E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +34,25 @@ Global
 		{94DA3531-3D7D-4353-8C60-42667EC01CFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{94DA3531-3D7D-4353-8C60-42667EC01CFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{94DA3531-3D7D-4353-8C60-42667EC01CFF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{36EC5452-6C01-4E5E-905C-B7A67F713206}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{36EC5452-6C01-4E5E-905C-B7A67F713206}.Debug|Any CPU.Build.0 = Debug|x64
+		{36EC5452-6C01-4E5E-905C-B7A67F713206}.Release|Any CPU.ActiveCfg = Release|x64
+		{36EC5452-6C01-4E5E-905C-B7A67F713206}.Release|Any CPU.Build.0 = Release|x64
+		{891C5C5A-15D8-400B-BDDA-0B93A42F8E35}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{891C5C5A-15D8-400B-BDDA-0B93A42F8E35}.Debug|Any CPU.Build.0 = Debug|x64
+		{891C5C5A-15D8-400B-BDDA-0B93A42F8E35}.Release|Any CPU.ActiveCfg = Release|x64
+		{891C5C5A-15D8-400B-BDDA-0B93A42F8E35}.Release|Any CPU.Build.0 = Release|x64
+		{931F6D3B-9F92-4464-AFF6-176AA52F76C4}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{931F6D3B-9F92-4464-AFF6-176AA52F76C4}.Debug|Any CPU.Build.0 = Debug|x64
+		{931F6D3B-9F92-4464-AFF6-176AA52F76C4}.Release|Any CPU.ActiveCfg = Release|x64
+		{931F6D3B-9F92-4464-AFF6-176AA52F76C4}.Release|Any CPU.Build.0 = Release|x64
+		{5B981C6D-44FA-4370-9285-EB08C5E99FFA}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{5B981C6D-44FA-4370-9285-EB08C5E99FFA}.Debug|Any CPU.Build.0 = Debug|x64
+		{5B981C6D-44FA-4370-9285-EB08C5E99FFA}.Release|Any CPU.ActiveCfg = Release|x64
+		{5B981C6D-44FA-4370-9285-EB08C5E99FFA}.Release|Any CPU.Build.0 = Release|x64
+		{78EAB489-A696-4135-B346-47F94DE19F7E}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{78EAB489-A696-4135-B346-47F94DE19F7E}.Debug|Any CPU.Build.0 = Debug|x64
+		{78EAB489-A696-4135-B346-47F94DE19F7E}.Release|Any CPU.ActiveCfg = Release|x64
+		{78EAB489-A696-4135-B346-47F94DE19F7E}.Release|Any CPU.Build.0 = Release|x64
 	EndGlobalSection
 EndGlobal

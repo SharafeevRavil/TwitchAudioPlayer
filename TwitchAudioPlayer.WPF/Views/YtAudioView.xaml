@@ -1,0 +1,150 @@
+<UserControl x:Class="TwitchAudioPlayer.WPF.Views.YtAudioView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:TwitchAudioPlayer.WPF.Views"
+             xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="500" d:DesignWidth="500"
+             d:DataContext="{d:DesignInstance Type=viewModels:YtAudioViewModel, IsDesignTimeCreatable=True}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="3*" />
+        </Grid.RowDefinitions>
+
+        <!-- верхняя панель -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="{Binding TrackLoadingGridLength}" />
+                <ColumnDefinition Width="{Binding TrackLoadingGridLength2}" />
+                <ColumnDefinition Width="{Binding TrackLoadingGridLength2}" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            
+            <Grid Grid.Column="0" HorizontalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Track loading: " FontWeight="Bold" FontSize="16" Margin="0 5"
+                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
+
+                <ToggleButton Grid.Column="1" IsChecked="{Binding TrackLoadingEnabled, Mode=TwoWay}"
+                              Command="{Binding SwitchTrackLoadingCommand}"
+                              Width="30" Height="30" Margin="5,0" VerticalAlignment="Center"
+                              HorizontalAlignment="Right"
+                              Style="{DynamicResource MaterialDesignFlatPrimaryToggleButton}">
+                    <materialDesign:PackIcon Kind="Shuffle" />
+                </ToggleButton>
+            </Grid>
+            
+            <Grid Grid.Column="1" HorizontalAlignment="Center" Margin="5 0 0 0" 
+                  Visibility="{Binding TrackLoadingEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Autoplay: " FontWeight="Bold" FontSize="16" Margin="5 5 0 5"
+                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
+                <ToggleButton Grid.Column="1" IsChecked="{Binding AutoPlayEnabled, Mode=TwoWay}"
+                              Command="{Binding SwitchAutoPlayCommand}"
+                              Width="30" Height="30" Margin="5,0" VerticalAlignment="Center"
+                              HorizontalAlignment="Right"
+                              Style="{DynamicResource MaterialDesignFlatPrimaryToggleButton}">
+                    <materialDesign:PackIcon Kind="Shuffle" />
+                </ToggleButton>
+            </Grid>
+            
+            <Grid Grid.Column="2" VerticalAlignment="Center" Margin="5 0 0 0"
+                  Visibility="{Binding TrackLoadingEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="Twitch:" FontWeight="Bold" FontSize="12" Margin="0 2"
+                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center"
+                           Grid.Row="0" Grid.Column="0" />
+                <materialDesign:PackIcon
+                    Visibility="{Binding TwitchEnabled, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Foreground="{Binding TwitchColor}" Kind="CheckCircle" Grid.Row="0" Grid.Column="1" Margin="0 2" />
+                <materialDesign:PackIcon
+                    Visibility="{Binding TwitchEnabled, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                    Foreground="Crimson" Kind="CloseCircle" Grid.Row="0" Grid.Column="1" Margin="0 2" />
+
+                <TextBlock Text="Don.Alerts: " FontWeight="Bold" FontSize="12" Margin="0 2"
+                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center"
+                           Grid.Row="1" Grid.Column="0" />
+                <materialDesign:PackIcon
+                    Visibility="{Binding DaEnabled, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Foreground="{Binding DaColor}" Kind="CheckCircle" Grid.Row="1" Grid.Column="1" Margin="0 2" />
+                <materialDesign:PackIcon
+                    Visibility="{Binding DaEnabled, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                    Foreground="Crimson" Kind="CloseCircle" Grid.Row="1" Grid.Column="1" Margin="0 2" />
+            </Grid>
+            
+            <Button Grid.Column="3" Command="{Binding SettingsCommand}" Margin="5" 
+                    Style="{StaticResource MaterialDesignIconButton}" Width="35" Height="35" > 
+                <materialDesign:PackIcon Kind="Settings" />
+            </Button>
+        </Grid>
+        <!-- проигранные треки -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Played Tracks:" FontWeight="Bold" FontSize="16" Margin="5 5"
+                       Foreground="{DynamicResource MaterialDesignBody}" />
+            <ListBox Grid.Row="1" ItemsSource="{Binding PlayedTracksViewModels}" HorizontalContentAlignment="Stretch"
+                     VerticalAlignment="Stretch"
+                     VirtualizingPanel.ScrollUnit="Pixel" SelectedItem="{Binding PlayedSelectedTrack, Mode=TwoWay}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="Padding" Value="0" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <local:YtAudioTrackControl DataContext="{Binding}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+        <!-- треки в очереди -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Queued Tracks:" FontWeight="Bold" FontSize="16" Margin="5 5"
+                       Foreground="{DynamicResource MaterialDesignBody}" />
+            <ListBox Grid.Row="1" ItemsSource="{Binding QueuedTracksViewModels}" HorizontalContentAlignment="Stretch"
+                     VerticalAlignment="Stretch"
+                     VirtualizingPanel.ScrollUnit="Pixel" SelectedItem="{Binding QueuedSelectedTrack, Mode=TwoWay}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="Padding" Value="0" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <local:YtAudioTrackControl DataContext="{Binding}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+    </Grid>
+</UserControl>

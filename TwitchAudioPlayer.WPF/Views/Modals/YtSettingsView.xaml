@@ -1,0 +1,156 @@
+<Window x:Class="TwitchAudioPlayer.WPF.Views.Modals.YtSettingsView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:modals="clr-namespace:TwitchAudioPlayer.WPF.ViewModels.Modals"
+        mc:Ignorable="d"
+        Title="VkSettingsWindow" Height="800" Width="700" ResizeMode="NoResize"
+        Style="{StaticResource MaterialDesignWindow}"
+        d:DataContext="{d:DesignInstance Type=modals:YtSettingsViewModel, IsDesignTimeCreatable=True}"
+        WindowStyle="None">
+    <Grid>
+        <StackPanel Margin="20">
+            <TextBlock Text="Настройки YouTube" FontSize="24" FontWeight="Bold" Margin="0,0,0,10" />
+            <Grid Margin="0, 0, 0, 10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="Макс. длина видео YouTube (в минутах):" />
+                <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                         Text="{Binding MaxMinutesLength, Mode=TwoWay}" />
+            </Grid>
+
+            <TextBlock Text="Настройки Twitch" FontSize="24" FontWeight="Bold" Margin="0,0,0,10" />
+            <Grid Margin="0, 0, 0, 10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="Название награды с музыкой:" />
+                <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                         Text="{Binding TwitchRewardTitle, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0, 0, 0, 10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="Описание награды с музыкой:" />
+                <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                         TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Visible"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                         Text="{Binding TwitchRewardPrompt, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0, 0, 0, 10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="Цена награды с музыкой:" />
+                <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                         Text="{Binding TwitchRewardCost, Mode=TwoWay}" />
+            </Grid>
+            <TextBlock VerticalAlignment="Center" Margin="0,0,0, 3" TextWrapping="Wrap"
+                       Text="[BETA] Обычно программа сама полностью управляет наградой на твиче в соответствии с параметрами. Если нет - попробуйте перезапустить программу. Использовать эти кнопки ТОЛЬКО при необходимости. Обязательно сначала сохранить измененные выше параметры" FontStyle="Italic"/>
+            <Grid Margin="0, 0, 0, 10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="[BETA] Создать награду" Command="{Binding TwitchCreateCommand}"
+                        Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,10,0" FontStyle="Italic"/>
+                <Button Grid.Column="1" Content="[BETA] Обновить награду" Command="{Binding TwitchUpdateCommand}"
+                        Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,10,0" FontStyle="Italic"/>
+                <Button Grid.Column="2" Content="[BETA] Удалить награду" Command="{Binding TwitchDeleteCommand}"
+                        Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,10,0" FontStyle="Italic"/>
+            </Grid>
+            <Grid Margin="0, 0, 0, 10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="Аутентификации нет" FontWeight="Bold" Foreground="Crimson" 
+                           Visibility="{Binding IsTwitchAuth, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="Невалидный токен" FontWeight="Bold" Foreground="Crimson"
+                           Visibility="{Binding IsTwitchAuthAndTokenInvalid, Converter={StaticResource BoolToVisibilityConverter}}" />
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="Авторизация успешна" FontWeight="Bold" Foreground="Green"
+                           Visibility="{Binding IsTwitchAuthAndTokenValid, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                <Button Grid.Column="1" Content="Аутентификация" Command="{Binding TwitchAuthCommand}"
+                        Visibility="{Binding IsTwitchNeedToAuth, Converter={StaticResource BoolToVisibilityConverter}}"
+                        Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,0,0" />
+            </Grid>
+
+            <TextBlock Text="Настройки DonationAlerts" FontSize="24" FontWeight="Bold" Margin="0,0,0,10" />
+            <!-- Аутентификация -->
+            <StackPanel Visibility="{Binding IsDaAuth, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                <Grid Margin="0, 0, 0, 10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"></ColumnDefinition>
+                        <ColumnDefinition Width="*"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                               Text="DonationAlerts AppId:" />
+                    <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                             Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                             Text="{Binding DaAppId, Mode=TwoWay}" />
+                </Grid>
+                <Grid Margin="0, 0, 0, 10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"></ColumnDefinition>
+                        <ColumnDefinition Width="*"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                               Text="DonationAlerts AppApiKey:" />
+                    <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                             Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                             Text="{Binding DaAppKey, Mode=TwoWay}" />
+                </Grid>
+                <Button Content="Аутентификация" Command="{Binding DonationAuthCommand}"
+                        Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,0,10" />
+            </StackPanel>
+            <!-- Токен Da Widget -->
+            <Grid Margin="0, 0, 0, 10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
+                           Text="DonationAlerts any widget token:" />
+                <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                         Text="{Binding DaWidgetToken, Mode=TwoWay}" />
+                <TextBlock
+                    Visibility="{Binding IsDaWidgetTokenValid, Converter={StaticResource BoolToVisibilityConverter}}"
+                    HorizontalAlignment="Right" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10, 0"
+                    Text="Token Valid" FontWeight="Bold" Foreground="Green" />
+                <TextBlock
+                    Visibility="{Binding IsDaWidgetTokenValid, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                    HorizontalAlignment="Right" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10, 0"
+                    Text="Token Invalid" FontWeight="Bold" Foreground="Crimson" />
+            </Grid>
+            <!-- <Button Visibility="{Binding IsDaAuth, Converter={StaticResource BoolToVisibilityConverter}}" -->
+            <!--         Content="Test btn" Command="{Binding TestCommand}" -->
+            <!--         Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,0,0" /> -->
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,20,0,10">
+            <Button Content="Сохранить" Command="{Binding SaveCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,10,0" />
+            <Button Content="Отмена" Command="{Binding CancelCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}" />
+        </StackPanel>
+    </Grid>
+</Window>

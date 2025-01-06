@@ -1,0 +1,93 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net9.0-windows10.0.22621.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UseWPF>true</UseWPF>
+        <ApplicationIcon>Assets\icons\icon.ico</ApplicationIcon>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0"/>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
+        <PackageReference Include="FFmpegInteropX" Version="2.0.0-pre7"/>
+        <PackageReference Include="MaterialDesignThemes" Version="5.1.0"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135"/>
+        <PackageReference Include="NHotkey.Wpf" Version="3.0.0" />
+        <PackageReference Include="System.Data.SQLite" Version="1.0.119" />
+        <PackageReference Include="TwitchLib" Version="3.5.3" />
+        <PackageReference Include="YoutubeExplode" Version="6.5.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\FFMediaToolkit\FFMediaToolkit.csproj"/>
+        <ProjectReference Include="..\MusicX.Core\MusicX.Core.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Page Update="Views\MainWindow.xaml">
+            <Generator>MSBuild:Compile</Generator>
+            <XamlRuntime>Wpf</XamlRuntime>
+            <SubType>Designer</SubType>
+        </Page>
+        <Page Update="Views\YtAudioView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+            <XamlRuntime>Wpf</XamlRuntime>
+            <SubType>Designer</SubType>
+        </Page>
+        <Page Update="Views\Modals\YtSettingsView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+            <XamlRuntime>Wpf</XamlRuntime>
+            <SubType>Designer</SubType>
+        </Page>
+        <Page Update="Views\YtAudioTrackControl.xaml">
+          <Generator>MSBuild:Compile</Generator>
+          <XamlRuntime>Wpf</XamlRuntime>
+          <SubType>Designer</SubType>
+        </Page>
+        <Page Update="Views\Modals\HotkeySettingsView.xaml">
+          <Generator>MSBuild:Compile</Generator>
+          <XamlRuntime>Wpf</XamlRuntime>
+          <SubType>Designer</SubType>
+        </Page>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="ffmpeg.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="SLAVA_UKRAINI">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Resource Include="Assets\newyear\snow1.png"/>
+        <Resource Include="Assets\newyear\snow2.png"/>
+        <Resource Include="Assets\newyear\snow3.png"/>
+        <Resource Include="Assets\newyear\snow4.png"/>
+        <Resource Include="Assets\newyear\snow5.png"/>
+        <Resource Include="Assets\newyear\snow6.png"/>
+        <Resource Include="Assets\newyear\snow7.png"/>
+        <Resource Include="Assets\newyear\snow8.png"/>
+        <Resource Include="Assets\newyear\snow9.png"/>
+        <Resource Include="Assets\newyear\snowfall.png"/>
+        <Resource Include="Assets\newyear\start_show.png"/>
+        
+        <Resource Include="Assets\icons\icon.ico" />
+        <Resource Include="Assets\icons\icon.png" />
+        <Resource Include="Assets\icons\twitch.png" />
+        <Resource Include="Assets\icons\da.png" />
+        <Resource Include="Assets\default.png" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Utils\" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,136 @@
+﻿using System.IO;
+using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using MusicX.Core.Services;
+using NLog;
+using TwitchAudioPlayer.WPF.MusicX.Services;
+using TwitchAudioPlayer.WPF.MusicX.Services.Player;
+using TwitchAudioPlayer.WPF.MusicX.Services.Player.Sources;
+using TwitchAudioPlayer.WPF.MusicX.Services.Stores;
+using TwitchAudioPlayer.WPF.Services;
+using TwitchAudioPlayer.WPF.Services.DonationAlerts;
+using TwitchAudioPlayer.WPF.Services.MusicOrder;
+using TwitchAudioPlayer.WPF.Services.Twitch;
+using TwitchAudioPlayer.WPF.ViewModels;
+using TwitchAudioPlayer.WPF.ViewModels.Modals;
+using TwitchAudioPlayer.WPF.Views;
+using TwitchAudioPlayer.WPF.Views.Modals;
+using VkNet.AudioBypassService.Abstractions;
+using VkNet.AudioBypassService.Extensions;
+using VkNet.Extensions.DependencyInjection;
+using CustomSectionsService = TwitchAudioPlayer.WPF.MusicX.Services.CustomSectionsService;
+
+
+namespace TwitchAudioPlayer.WPF;
+
+using CustomSectionsService = MusicX.Services.CustomSectionsService;
+
+/// <summary>
+///     Interaction logic for App.xaml
+/// </summary>
+public partial class App : Application
+{
+    private IServiceProvider _serviceProvider = null!; // Initialized in OnStartup
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        var services = new ServiceCollection();
+        ConfigureServices(services);
+
+        _serviceProvider = services.BuildServiceProvider();
+
+        // var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+        var startingWindow = _serviceProvider.GetRequiredService<StartingWindow>();
+        startingWindow.Show();
+
+        base.OnStartup(e);
+    }
+
+    private static void ConfigureServices(ServiceCollection services)
+    {
+        // Configure Logging
+        services.AddLogging();
+
+        // Register Services
+        var settingsFilePathFolder = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "TwitchAudioPlayer");
+        var settingsFilePath = Path.Combine(new DirectoryInfo(settingsFilePathFolder).FullName, "userSettings.json");
+        services.AddSingleton<IUserSettingsManager>(_ => new UserSettingsManager(settingsFilePath));
+
+        services.AddTransient<IWindowService, WindowService>();
+        services.AddTransient<MusicOrderRepository>();
+        
+        services.AddSingleton<DonationAlertsService>();
+        services.AddTransient<DonationAlertsOrdersNotifier>();
+        
+        services.AddSingleton<TwitchService>();
+        services.AddSingleton<TwitchTokenStorage>();
+        services.AddTransient<TwitchOrdersNotifier>();
+        
+        services.AddSingleton<MusicOrderService>();
+        services.AddTransient<YouTubeService>();
+        
+
+        // Register ViewModels
+        services.AddSingleton<MainWindowViewModel>();
+        services.AddTransient<VkAudioViewModel>();
+        services.AddTransient<AudioPlayerViewModel>();
+        services.AddTransient<VkSettingsViewModel>();
+        services.AddTransient<YtAudioViewModel>();
+        services.AddTransient<YtSettingsViewModel>();
+        services.AddTransient<HotkeySettingsViewModel>();
+
+        // Register Views
+        services.AddSingleton<MainWindow>();
+        services.AddTransient<VkAudioView>();
+        services.AddTransient<AudioTrackControl>();
+        services.AddTransient<AudioPlayerView>();
+        services.AddSingleton<StartingWindow>();
+        services.AddTransient<VkSettingsView>();
+        services.AddTransient<YtAudioView>();
+        services.AddTransient<YtSettingsView>();
+        services.AddTransient<HotkeySettingsView>();
+
+        InitMusicX();
+    }
+
+    private static void InitMusicX()
+    {
+        var collection = new ServiceCollection();
+
+        // collection.AddSingleton<IAsyncCaptchaSolver, CaptchaSolverService>();
+
+        collection.AddSingleton<IVkTokenStore, TokenStore>();
+        collection.AddSingleton<IDeviceIdStore, DeviceIdStore>();
+        collection.AddSingleton<IExchangeTokenStore, ExchangeTokenStore>();
+
+        collection.AddAudioBypass();
+        collection.AddVkNet();
+
+        collection.AddSingleton<VkService>();
+        collection.AddSingleton<GithubService>();
+        collection.AddSingleton<BoomService>();
+        collection.AddSingleton(LogManager.GetLogger("Common"));
+        collection.AddSingleton<GeniusService>();
+
+        collection.AddSingleton<ITrackMediaSource, BoomMediaSource>();
+        collection.AddSingleton<ITrackMediaSource, VkMediaSource>();
+
+        // collection.AddSingleton<ITrackStatsListener, VkTrackStats>();
+
+        collection.AddSingleton<ConfigService>();
+        collection.AddSingleton<PlayerService, PlayerService>(); // свой плеер
+        collection.AddSingleton<ICustomSectionsService, CustomSectionsService>();
+
+        collection.AddSingleton(
+            s => new BackendConnectionService(s.GetRequiredService<Logger>(), StaticService.Version));
+
+        var container = StaticService.Container = collection.BuildServiceProvider();
+    }
+
+    protected override void OnExit(ExitEventArgs exitEventArgs)
+    {
+        // Dispose of services if needed
+        if (_serviceProvider is IDisposable disposable) disposable.Dispose();
+    }
+}
