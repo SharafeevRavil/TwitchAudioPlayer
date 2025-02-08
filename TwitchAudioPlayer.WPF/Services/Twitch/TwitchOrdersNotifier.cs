@@ -30,7 +30,7 @@ public class TwitchOrdersNotifier : NewOrdersNotifier
         if (!await EnsureRewardExist()) return false;
         return _twitchService.IsAuth && await _twitchService.CheckTokenValidAsync();
     }
-
+    
     private async Task<bool> EnsureRewardExist()
     {
         // Settings reward title set
@@ -42,8 +42,8 @@ public class TwitchOrdersNotifier : NewOrdersNotifier
         // Settings reward cost set
         var rewardCost = _userSettingsManager.Settings.TwitchRewardCost;
         if (rewardCost == null) return false;
-
-        var rewardId = await _twitchService.UpdateRewardAsync(rewardTitle, rewardPrompt, rewardCost.Value);
+        
+        var rewardId = await _twitchService.UpdateRewardIfChanged(rewardTitle, rewardPrompt, rewardCost.Value);
         if (rewardId == null)
         {
             rewardId = await _twitchService.CreateRewardAsync(rewardTitle, rewardPrompt, rewardCost.Value);

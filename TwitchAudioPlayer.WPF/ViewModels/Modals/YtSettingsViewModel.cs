@@ -96,7 +96,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
 
     [RelayCommand]
     private async Task TwitchUpdateAsync() =>
-        await _twitchService.UpdateRewardAsync(_userSettingsManager.Settings.TwitchRewardTitle!,
+        await _twitchService.UpdateRewardIfChanged(_userSettingsManager.Settings.TwitchRewardTitle!,
             _userSettingsManager.Settings.TwitchRewardPrompt!, _userSettingsManager.Settings.TwitchRewardCost ?? 0);
 
     [RelayCommand]

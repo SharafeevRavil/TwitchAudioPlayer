@@ -117,7 +117,7 @@ public class TwitchService
 
     #endregion
 
-    public async Task<string?> GetRewardId(string title, bool onlyManageableRewards = true, bool? isEnabled = true,
+    public async Task<CustomReward?> GetReward(string title, bool onlyManageableRewards = true, bool? isEnabled = true,
         bool? isUserInputRequired = true, bool? shouldRedemptionsSkipQueue = false, string? currentUser = null)
     {
         try
@@ -135,7 +135,7 @@ public class TwitchService
                 rewardsEnumerable = rewardsEnumerable
                     .Where(x => x.ShouldRedemptionsSkipQueue == shouldRedemptionsSkipQueue);
             var matchingReward = rewardsEnumerable.FirstOrDefault();
-            return matchingReward?.Id;
+            return matchingReward;
         }
         catch (Exception e)
         {
@@ -168,14 +168,17 @@ public class TwitchService
         }
     }
 
-    public async Task<string?> UpdateRewardAsync(string title, string prompt, uint cost, bool isUserInputRequired = true,
+    public async Task<string?> UpdateRewardIfChanged(string title, string prompt, uint cost, bool isUserInputRequired = true,
         bool isEnabled = true, string? currentUser = null)
     {
         try
         {
-            var rewardId = await GetRewardId(title, true, null, null, null);
-            if (rewardId == null) return null;
-            return await UpdateRewardAsync(rewardId, title, prompt, (int)cost, isUserInputRequired, isEnabled, currentUser);
+            var reward = await GetReward(title, true, null, null, null);
+            if (reward == null) return null;
+            var isChanged = reward.Title != title || reward.Prompt != prompt || reward.Cost != cost ||
+                            reward.IsUserInputRequired != isUserInputRequired || reward.IsEnabled != isEnabled;
+            if (!isChanged) return reward.Id;
+            return await UpdateRewardAsync(reward.Id, title, prompt, (int)cost, isUserInputRequired, isEnabled, currentUser);
         }
         catch (Exception e)
         {
@@ -184,9 +187,8 @@ public class TwitchService
         }
     }
 
-    public async Task<string?> UpdateRewardAsync(string rewardId, string title, string prompt, int cost,
-        bool isUserInputRequired = true,
-        bool isEnabled = true, string? currentUser = null)
+    private async Task<string?> UpdateRewardAsync(string rewardId, string title, string prompt, int cost,
+        bool isUserInputRequired = true, bool isEnabled = true, string? currentUser = null)
     {
         try
         {
@@ -214,8 +216,8 @@ public class TwitchService
         try
         {
             currentUser ??= await GetCurrentUserId();
-            var reward = await GetRewardId(title, true, null, null, null, currentUser);
-            await _api.Helix.ChannelPoints.DeleteCustomRewardAsync(currentUser, reward);
+            var reward = await GetReward(title, true, null, null, null, currentUser);
+            await _api.Helix.ChannelPoints.DeleteCustomRewardAsync(currentUser, reward?.Id);
         }
         catch (Exception e)
         {
@@ -238,7 +240,7 @@ public class TwitchService
         }
     }
 
-    private async Task<List<RewardRedemption>> GetUnfulfilledRewards(string rewardId, string? currentUser = null)
+    public async Task<List<RewardRedemption>> GetUnfulfilledRewards(string rewardId, string? currentUser = null)
     {
         currentUser ??= await GetCurrentUserId();
         var redemptions =

@@ -2,10 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayer.WPF", "TwitchAudioPlayer.WPF\TwitchAudioPlayer.WPF.csproj", "{573D21F0-16E1-4B26-90F9-4143CF04C3DF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayer.Clients", "TwitchAudioPlayer.Clients\TwitchAudioPlayer.Clients.csproj", "{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitchAudioPlayer.Domain", "TwitchAudioPlayer.Domain\TwitchAudioPlayer.Domain.csproj", "{94DA3531-3D7D-4353-8C60-42667EC01CFF}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FFMediaToolkit", "FFMediaToolkit\FFMediaToolkit.csproj", "{36EC5452-6C01-4E5E-905C-B7A67F713206}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MusicX.Core", "MusicX.Core\MusicX.Core.csproj", "{891C5C5A-15D8-400B-BDDA-0B93A42F8E35}"
@@ -26,14 +22,6 @@ Global
 		{573D21F0-16E1-4B26-90F9-4143CF04C3DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{573D21F0-16E1-4B26-90F9-4143CF04C3DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{573D21F0-16E1-4B26-90F9-4143CF04C3DF}.Release|Any CPU.Build.0 = Release|Any CPU
-		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{47C09EC6-16F3-4F68-97B3-21B1A40D6BD1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{94DA3531-3D7D-4353-8C60-42667EC01CFF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{94DA3531-3D7D-4353-8C60-42667EC01CFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{94DA3531-3D7D-4353-8C60-42667EC01CFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{94DA3531-3D7D-4353-8C60-42667EC01CFF}.Release|Any CPU.Build.0 = Release|Any CPU
 		{36EC5452-6C01-4E5E-905C-B7A67F713206}.Debug|Any CPU.ActiveCfg = Debug|x64
 		{36EC5452-6C01-4E5E-905C-B7A67F713206}.Debug|Any CPU.Build.0 = Debug|x64
 		{36EC5452-6C01-4E5E-905C-B7A67F713206}.Release|Any CPU.ActiveCfg = Release|x64
