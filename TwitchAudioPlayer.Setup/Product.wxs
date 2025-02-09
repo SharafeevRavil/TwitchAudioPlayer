@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+	<Product Id="*" Name="TwitchAudioPlayer" Language="1033" Version="1.0.0.0" Manufacturer="SharafeevRavil" 
+			 UpgradeCode="88e1eff9-806c-4f76-8683-0f7a1048672e">
+		<Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+
+		<MajorUpgrade DowngradeErrorMessage="A newer version of TwitchAudioPlayer is already installed." />
+
+		<Feature Id="ProductFeature"
+             Title="TwitchAudioPlayer" 
+             Level="1">
+			<ComponentGroupRef Id="PublishedComponents" />
+			<ComponentRef Id="ApplicationShortcut" />
+		</Feature>
+
+		<Media Id="1"
+			   Cabinet="media.cab"
+			   EmbedCab="yes"
+			   DiskPrompt="CD-ROM #1" />
+		<Property Id="DiskPrompt" Value="TwitchAudioPlayer CD-ROM #1" />
+		<Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" ></Property>
+		<UIRef Id="WixUI_InstallDir"/>
+
+
+		<Directory Id="TARGETDIR" Name="SourceDir">
+			<Directory Id="ProgramFilesFolder">
+				<Directory Id="INSTALLFOLDER" Name="TwitchAudioPlayer"/>
+			</Directory>
+			<Directory Id="ProgramMenuFolder">
+				<Directory Id="ApplicationProgramsFolder" Name="TwitchAudioPlayer"/>
+			</Directory>
+		</Directory>
+		
+		<!--Шорткат в программное меню-->
+		<DirectoryRef Id="ApplicationProgramsFolder">
+			<Component Id="ApplicationShortcut" Guid="e05c8f0f-1447-4ece-b04a-22ac2c4bee01">
+				<Shortcut Id="ApplicationStartMenuShortcut"
+						  Name="TwitchAudioPlayer"
+						  Description="Launch TwitchAudioPlayer"
+						  Target="[INSTALLFOLDER]TwitchAudioPlayer.WPF.exe"
+						  WorkingDirectory="INSTALLFOLDER"/>
+				<RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+				<RegistryValue Root="HKCU" Key="Software\TwitchAudioPlayer" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+			</Component>
+		</DirectoryRef>
+	</Product>
+</Wix>
