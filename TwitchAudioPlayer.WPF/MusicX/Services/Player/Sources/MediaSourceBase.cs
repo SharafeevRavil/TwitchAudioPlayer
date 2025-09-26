@@ -10,6 +10,7 @@ using FFMediaToolkit.Audio;
 using FFMediaToolkit.Decoding;
 using FFmpegInteropX;
 using MusicX.Shared.Player;
+using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using WinRT;
 
 namespace TwitchAudioPlayer.WPF.MusicX.Services.Player.Sources;
@@ -37,7 +38,7 @@ public abstract class MediaSourceBase : ITrackMediaSource
                 ["reconnect_on_http_error"] = "4xx,5xx",
                 ["stimeout"] = "30000000",
                 ["timeout"] = "30000000",
-                ["rw_timeout"] = "30000000"
+                ["rw_timeout"] = "30000000",
             }
         }
     };
@@ -166,6 +167,12 @@ public abstract class MediaSourceBase : ITrackMediaSource
         if (customOptions != null)
             foreach (var (key, value) in customOptions)
                 options[key] = value;
+        
+        //fixme: костыль чтобы ютуб гонял через прокси (поднятый локально через v2Ray)
+        if (data is YtTrackData)
+        {
+            options["http_proxy"] = "http://127.0.0.1:10808";
+        }
 
         return FFmpegMediaSource.CreateFromUriAsync(data.Url, new MediaSourceConfig
         {

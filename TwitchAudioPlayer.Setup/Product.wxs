@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-	<Product Id="*" Name="TwitchAudioPlayer" Language="1033" Version="1.0.0.0" Manufacturer="SharafeevRavil" 
-			 UpgradeCode="88e1eff9-806c-4f76-8683-0f7a1048672e">
+	<Product Id="*" Name="TwitchAudioPlayer" Language="1033"
+			 Version="$(var.Version)"
+			 Manufacturer="SharafeevRavil" UpgradeCode="88e1eff9-806c-4f76-8683-0f7a1048672e">
 		<Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
-
-		<MajorUpgrade DowngradeErrorMessage="A newer version of TwitchAudioPlayer is already installed." />
+		
+		<MajorUpgrade DowngradeErrorMessage="A newer version of TwitchAudioPlayer is already installed."
+					  AllowSameVersionUpgrades="no"
+					  Schedule="afterInstallInitialize" />
 
 		<Feature Id="ProductFeature"
              Title="TwitchAudioPlayer" 

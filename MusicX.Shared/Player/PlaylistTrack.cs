@@ -58,7 +58,8 @@ public record IdInfo(long? Id, long OwnerId, string AccessKey)
     }
 }
 
-public sealed record VkTrackData(
+//я спиздил sealed отсюда, ну соре костыль чтобы только ютуб через прокси ффмпегался
+public record VkTrackData(
     string Url,
     bool IsLiked,
     bool IsExplicit,
@@ -70,7 +71,7 @@ public sealed record VkTrackData(
     IdInfo? Playlist,
     string? MainColor) : TrackData(Url, IsLiked, IsExplicit, Duration)
 {
-    public bool Equals(VkTrackData? other)
+    public virtual bool Equals(VkTrackData? other)
     {
         if (other is null)
             return false;

@@ -89,6 +89,9 @@
                             Style="{StaticResource MaterialDesignFlatButton}">
                         <materialDesign:PackIcon Kind="Settings" Width="25" Height="25" />
                     </Button>
+                    <TextBlock Text="{Binding Version}" FontWeight="Bold" VerticalAlignment="Center" FontSize="10"
+                               Margin="10, 5"
+                               Foreground="{DynamicResource MaterialDesignBody}" />
                 </StackPanel>
 
                 <Button Click="Minimize_Click" Grid.Column="1" Width="50" Height="40"

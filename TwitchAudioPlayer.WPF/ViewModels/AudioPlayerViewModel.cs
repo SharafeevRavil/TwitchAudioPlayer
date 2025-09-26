@@ -8,6 +8,7 @@ using TwitchAudioPlayer.WPF.MusicX.Services;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
+using Serilog;
 
 namespace TwitchAudioPlayer.WPF.ViewModels;
 
@@ -15,6 +16,7 @@ public partial class AudioPlayerViewModel : ObservableObject
 {
     private readonly IUserSettingsManager _userSettingsManager;
     private readonly PlayerService _player;
+    private readonly ILogger _logger = Log.ForContext<AudioPlayerViewModel>();
     private double _currentPosition;
     [ObservableProperty] private bool _isMuted;
 
@@ -77,7 +79,7 @@ public partial class AudioPlayerViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Console.WriteLine(e.Message);
+            _logger.Error(e, "Error while setting hotkeys");
         }
     }
 
@@ -89,7 +91,7 @@ public partial class AudioPlayerViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.Error(e, "Error while changing volume");
         }
     }
 
@@ -182,7 +184,7 @@ public partial class AudioPlayerViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.Error(e, "Error while switching to previous track");
         }
     }
 
@@ -195,7 +197,7 @@ public partial class AudioPlayerViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.Error(e, "Error while switching to next track");
         }
     }
 
@@ -208,7 +210,7 @@ public partial class AudioPlayerViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.Error(e, "Error while toggling play/pause");
         }
     }
 
@@ -227,7 +229,7 @@ public partial class AudioPlayerViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.Error(e, "Error while toggling mute");
         }
     }
 }

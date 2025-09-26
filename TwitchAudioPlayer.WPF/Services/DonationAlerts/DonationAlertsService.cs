@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Serilog;
 
 namespace TwitchAudioPlayer.WPF.Services.DonationAlerts;
 
@@ -23,6 +24,7 @@ public class DonationAlertsService
     private string? _widgetToken;
     private readonly HttpClient _httpClient;
 
+    private readonly ILogger _logger = Log.ForContext<DonationAlertsService>();
 
     public DonationAlertsService(IUserSettingsManager userSettingsManager)
     {
@@ -69,7 +71,7 @@ public class DonationAlertsService
         using var listener = new HttpListener();
         listener.Prefixes.Add(redirectUri + "/");
         listener.Start();
-        Console.WriteLine("Listening for redirect...");
+        _logger.Information("Listening for redirect...");
         var context = await listener.GetContextAsync();
         var query = context.Request.QueryString;
         var code = query["code"];
@@ -131,47 +133,52 @@ public class DonationAlertsService
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.Error(e, "Error while getting donations");
             return null;
         }
     }
 
-    public async Task<bool> CheckWidgetTokenValid()
+    public async Task<bool> CheckWidgetTokenValid(int tryNumber = 0)
     {
+        const int maxTries = 5;
         try
         {
-            var response = await _httpClient.GetAsync(
-                $"{apiWidgetBaseUrl}getmediadata?callback=nothing&token={_widgetToken}&_={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
+            var request =
+                $"{apiWidgetBaseUrl}getmediadata?callback=nothing&token={_widgetToken}&_={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            var response = await _httpClient.GetAsync(request);
             return response.StatusCode == HttpStatusCode.OK;
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
-            return false;
+            _logger.Error(e, "Error while checking widget token validity");
+            if (tryNumber > maxTries) return false;
+            return await CheckWidgetTokenValid(tryNumber + 1);
         }
     }
     
-    public async Task<List<Media>?> GetMediaAsync()
+    public async Task<List<Media>?> GetMediaAsync(int tryNumber = 0)
     {
+        const int maxTries = 3;
         try
         {
             if (_widgetToken == null) return null;
 
-            var response = await _httpClient.GetAsync(
-                $"{apiWidgetBaseUrl}getmediadata?callback=nothing&token={_widgetToken}&_={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
+            var requestUri = $"{apiWidgetBaseUrl}getmediadata?callback=nothing&token={_widgetToken}&_={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            var response = await _httpClient.GetAsync(requestUri);
             response.EnsureSuccessStatusCode();
             var respData = await response.Content.ReadAsStringAsync();
 
             var media = Media.ParseResponse(respData);
             if (media != null) return media;
             
-            Console.WriteLine($"Error parsing media: {respData}");
+            _logger.Warning("Error parsing media: {ResponseData}", respData);
             return [];
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
-            return null;
+            _logger.Error(e, "Error while getting media");
+            if(tryNumber > maxTries) return null;
+            return await GetMediaAsync(tryNumber + 1);
         }
     }
 

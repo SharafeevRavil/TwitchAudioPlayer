@@ -1,8 +1,10 @@
 ﻿using System.IO;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MusicX.Core.Services;
 using NLog;
+using Serilog;
 using TwitchAudioPlayer.WPF.MusicX.Services;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Sources;
@@ -49,7 +51,17 @@ public partial class App : Application
     private static void ConfigureServices(ServiceCollection services)
     {
         // Configure Logging
-        services.AddLogging();
+        var logFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "TwitchAudioPlayer", "logs", $"log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+        Log.Logger = new LoggerConfiguration()
+            .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
+            .CreateLogger();
+        
+        services.AddLogging(builder =>
+        {
+            builder.ClearProviders();
+            builder.AddSerilog();
+        });
 
         // Register Services
         var settingsFilePathFolder = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -92,6 +104,10 @@ public partial class App : Application
         services.AddTransient<HotkeySettingsView>();
 
         InitMusicX();
+        
+        var serviceProvider = services.BuildServiceProvider();
+        var logger = serviceProvider.GetRequiredService<ILogger<App>>();
+        logger.LogInformation("Приложение запущено");
     }
 
     private static void InitMusicX()

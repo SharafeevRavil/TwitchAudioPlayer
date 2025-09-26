@@ -1,4 +1,6 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using System.Diagnostics;
+using System.Reflection;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TwitchAudioPlayer.WPF.Services;
 
@@ -10,10 +12,14 @@ public partial class MainWindowViewModel(IWindowService windowService) : Observa
     private async Task OnWindowLoadedAsync()
     {
     }
-    
+
     [RelayCommand]
     private async Task Settings()
     {
         windowService.OpenHotkeySettingsWindow();
     }
+
+    [ObservableProperty] private string _version =
+        $"v.{FileVersionInfo.GetVersionInfo((Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly()).Location)
+            .FileVersion ?? "not defined"}";
 }

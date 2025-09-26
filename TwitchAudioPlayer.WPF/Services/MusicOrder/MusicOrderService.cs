@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using MusicX.Shared.Player;
 using TwitchAudioPlayer.WPF.Services.DonationAlerts;
 using TwitchAudioPlayer.WPF.Services.Twitch;
+using Serilog;
 
 namespace TwitchAudioPlayer.WPF.Services.MusicOrder;
 
@@ -143,7 +144,7 @@ public class MusicOrderService
 
     private async Task OnMusicOrdersAdd(object? sender, List<MusicOrder> e)
     {
-        Console.WriteLine("OnMusicOrdersAdd");
+        Log.Information("OnMusicOrdersAdd вызван.");
         _musicOrderRepository.AddOrders(e);
         var (orders, errors) = await GetMusicOrderWithTracks(e);
         OrdersAdded?.Invoke(this, orders);

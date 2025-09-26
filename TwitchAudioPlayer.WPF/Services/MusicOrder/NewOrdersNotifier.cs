@@ -35,13 +35,25 @@ public abstract class NewOrdersNotifier
         await Start();
     }
 
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    
     private async void Timer_Tick(object? sender, EventArgs e)
     {
-        var orders = await MakeApiRequest(_lastOrderDate);
-        Ping?.Invoke(this, EventArgs.Empty);
-        if (orders is not { Count: > 0 }) return;
-        _lastOrderDate = orders.Max(x => x.Date);
-        MusicOrdersAdd?.Invoke(this, orders);
+        if (!await _semaphore.WaitAsync(0))
+            return;
+
+        try
+        {
+            var orders = await MakeApiRequest(_lastOrderDate);
+            Ping?.Invoke(this, EventArgs.Empty);
+            if (orders is not { Count: > 0 }) return;
+            _lastOrderDate = orders.Max(x => x.Date);
+            MusicOrdersAdd?.Invoke(this, orders);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     protected abstract Task<List<MusicOrder>?> MakeApiRequest(DateTimeOffset lastOrderDate);

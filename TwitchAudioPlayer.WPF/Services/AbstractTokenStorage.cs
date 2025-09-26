@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Serilog;
 
 namespace TwitchAudioPlayer.WPF.Services;
 
@@ -21,7 +22,7 @@ public abstract class AbstractTokenStorage<T> where T: class?
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            Log.Error(e, "Ошибка при сохранении токена.");
             throw;
         }
     }
@@ -38,7 +39,7 @@ public abstract class AbstractTokenStorage<T> where T: class?
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            Log.Error(e, "Ошибка при получении токена.");
             return null;
         }
     }
