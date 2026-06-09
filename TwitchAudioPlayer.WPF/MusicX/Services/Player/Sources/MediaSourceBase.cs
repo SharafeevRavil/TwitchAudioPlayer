@@ -158,7 +158,8 @@ public abstract class MediaSourceBase : ITrackMediaSource
     }
 
     public static Task<FFmpegMediaSource> CreateWinRtMediaSource(TrackData data,
-        IReadOnlyDictionary<string, string>? customOptions = null, CancellationToken cancellationToken = default)
+        IReadOnlyDictionary<string, string>? customOptions = null, Uri? httpProxyUri = null,
+        CancellationToken cancellationToken = default)
     {
         var options = new PropertySet();
 
@@ -168,10 +169,9 @@ public abstract class MediaSourceBase : ITrackMediaSource
             foreach (var (key, value) in customOptions)
                 options[key] = value;
         
-        //fixme: костыль чтобы ютуб гонял через прокси (поднятый локально через v2Ray)
-        if (data is YtTrackData)
+        if (data is YtTrackData && httpProxyUri is not null)
         {
-            options["http_proxy"] = "http://127.0.0.1:10808";
+            options["http_proxy"] = httpProxyUri.ToString();
         }
 
         return FFmpegMediaSource.CreateFromUriAsync(data.Url, new MediaSourceConfig
@@ -184,6 +184,39 @@ public abstract class MediaSourceBase : ITrackMediaSource
                 KeepMetadataOnMediaSourceClosed = false
             }
         }).AsTask(cancellationToken);
+    }
+
+    protected static MediaOptions CreateMediaOptions(Uri? httpProxyUri = null)
+    {
+        var options = new MediaOptions
+        {
+            StreamsToLoad = MediaOptions.StreamsToLoad,
+            AudioSampleFormat = MediaOptions.AudioSampleFormat,
+            PacketBufferSizeLimit = MediaOptions.PacketBufferSizeLimit,
+            TargetVideoSize = MediaOptions.TargetVideoSize,
+            VideoPixelFormat = MediaOptions.VideoPixelFormat,
+            VideoSeekThreshold = MediaOptions.VideoSeekThreshold,
+            AudioSeekThreshold = MediaOptions.AudioSeekThreshold,
+            DemuxerOptions =
+            {
+                FlagDiscardCorrupt = MediaOptions.DemuxerOptions.FlagDiscardCorrupt,
+                FlagEnableFastSeek = MediaOptions.DemuxerOptions.FlagEnableFastSeek,
+                FlagEnableNoFillIn = MediaOptions.DemuxerOptions.FlagEnableNoFillIn,
+                FlagGeneratePts = MediaOptions.DemuxerOptions.FlagGeneratePts,
+                FlagIgnoreDts = MediaOptions.DemuxerOptions.FlagIgnoreDts,
+                FlagIgnoreIndex = MediaOptions.DemuxerOptions.FlagIgnoreIndex,
+                FlagNoBuffer = MediaOptions.DemuxerOptions.FlagNoBuffer,
+                FlagSortDts = MediaOptions.DemuxerOptions.FlagSortDts,
+                SeekToAny = MediaOptions.DemuxerOptions.SeekToAny,
+                PrivateOptions = new Dictionary<string, string>(MediaOptions.DemuxerOptions.PrivateOptions)
+            },
+            DecoderOptions = new Dictionary<string, string>(MediaOptions.DecoderOptions)
+        };
+
+        if (httpProxyUri is not null)
+            options.DemuxerOptions.PrivateOptions["http_proxy"] = httpProxyUri.ToString();
+
+        return options;
     }
 
     protected static void RegisterSourceObjectReference(MediaPlayer player, IWinRTObject rtObject)

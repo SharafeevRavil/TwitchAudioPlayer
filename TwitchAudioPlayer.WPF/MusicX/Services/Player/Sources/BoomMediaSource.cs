@@ -30,7 +30,7 @@ public class BoomMediaSource : MediaSourceBase
                 new Dictionary<string, string>
                 {
                     ["headers"] = $"Authorization: {_boomService.Client.DefaultRequestHeaders.Authorization}"
-                }, cancellationToken);
+                }, cancellationToken: cancellationToken);
 
             await rtMediaSource.OpenWithMediaPlayerAsync(player).AsTask(cancellationToken);
 

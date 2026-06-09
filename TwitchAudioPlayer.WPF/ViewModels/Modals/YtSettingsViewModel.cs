@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.DonationAlerts;
+using TwitchAudioPlayer.WPF.Services.Proxy;
 using TwitchAudioPlayer.WPF.Services.Twitch;
 
 namespace TwitchAudioPlayer.WPF.ViewModels.Modals;
@@ -12,21 +13,24 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     private readonly IUserSettingsManager _userSettingsManager;
     private readonly DonationAlertsService _donationAlertsService;
     private readonly TwitchService _twitchService;
+    private readonly IProxyService _proxyService;
 
     [ObservableProperty] private double? _maxMinutesLength;
 
     public YtSettingsViewModel(IUserSettingsManager userSettingsManager, DonationAlertsService donationAlertsService,
-        TwitchService twitchService)
+        TwitchService twitchService, IProxyService proxyService)
     {
         _userSettingsManager = userSettingsManager;
         _donationAlertsService = donationAlertsService;
         _twitchService = twitchService;
+        _proxyService = proxyService;
 
         var dispatcher = Dispatcher.CurrentDispatcher;
         userSettingsManager.SettingsChanged += (_, _) => dispatcher.Invoke(NotifySettingsChanged);
 
         // YT
         MaxMinutesLength = _userSettingsManager.Settings.MaxMinutesLength;
+        LoadProxySettings();
 
         // Twitch
         TwitchRewardTitle = _userSettingsManager.Settings.TwitchRewardTitle;
@@ -65,10 +69,81 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         _userSettingsManager.Settings.DaAppId = DaAppId;
         _userSettingsManager.Settings.DaAppKey = DaAppKey;
         _userSettingsManager.Settings.DaWidgetToken = DaWidgetToken;
+        ApplyProxySettings();
 
         await _userSettingsManager.SaveSettingsAsync();
         await base.SaveAsync();
     }
+
+    #region Proxy
+
+    public IReadOnlyList<ProxyMode> ProxyModes { get; } = Enum.GetValues<ProxyMode>();
+
+    [ObservableProperty] private ProxyMode _proxyMode;
+    [ObservableProperty] private string? _externalProxyUrl;
+    [ObservableProperty] private string? _singleNodeUri;
+    [ObservableProperty] private string? _subscriptionUrl;
+    [ObservableProperty] private int _localHttpPort;
+    [ObservableProperty] private string _proxyTestStatusText = "";
+    [ObservableProperty] private bool _isProxyTesting;
+    [ObservableProperty] private bool _isProxyTestEnabled = true;
+    [ObservableProperty] private bool _isProxyExternalMode;
+    [ObservableProperty] private bool _isProxySingleMode;
+    [ObservableProperty] private bool _isProxySubscriptionMode;
+
+    partial void OnProxyModeChanged(ProxyMode value)
+    {
+        IsProxyExternalMode = value == ProxyMode.External;
+        IsProxySingleMode = value == ProxyMode.Single;
+        IsProxySubscriptionMode = value == ProxyMode.Subscription;
+    }
+
+    partial void OnIsProxyTestingChanged(bool value)
+    {
+        IsProxyTestEnabled = !value;
+    }
+
+    [RelayCommand]
+    private async Task ProxyTestAsync()
+    {
+        IsProxyTesting = true;
+        ProxyTestStatusText = "Testing proxy...";
+
+        try
+        {
+            ApplyProxySettings();
+            await _userSettingsManager.SaveSettingsAsync();
+            var result = await _proxyService.TestProxyAsync();
+            ProxyTestStatusText = result.Success ? "Proxy test succeeded" : result.Message;
+        }
+        finally
+        {
+            IsProxyTesting = false;
+        }
+    }
+
+    private void LoadProxySettings()
+    {
+        var settings = _userSettingsManager.Settings.ProxySettings;
+        ProxyMode = settings.Mode;
+        ExternalProxyUrl = settings.ExternalProxyUrl;
+        SingleNodeUri = settings.SingleNodeUri;
+        SubscriptionUrl = settings.SubscriptionUrl;
+        LocalHttpPort = settings.LocalHttpPort;
+        ProxyTestStatusText = _proxyService.CurrentStatus.Message;
+    }
+
+    private void ApplyProxySettings()
+    {
+        var settings = _userSettingsManager.Settings.ProxySettings;
+        settings.Mode = ProxyMode;
+        settings.ExternalProxyUrl = ExternalProxyUrl;
+        settings.SingleNodeUri = SingleNodeUri;
+        settings.SubscriptionUrl = SubscriptionUrl;
+        settings.LocalHttpPort = LocalHttpPort;
+    }
+
+    #endregion
 
     #region Twitch
 

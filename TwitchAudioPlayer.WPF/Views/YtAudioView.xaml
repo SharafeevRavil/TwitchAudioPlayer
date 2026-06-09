@@ -65,6 +65,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -90,6 +91,19 @@
                 <materialDesign:PackIcon
                     Visibility="{Binding DaEnabled, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                     Foreground="Crimson" Kind="CloseCircle" Grid.Row="1" Grid.Column="1" Margin="0 2" />
+
+                <TextBlock Text="Proxy: " FontWeight="Bold" FontSize="12" Margin="0 2"
+                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center"
+                           Grid.Row="2" Grid.Column="0"
+                           ToolTip="{Binding ProxyStatusText}" />
+                <materialDesign:PackIcon
+                    Visibility="{Binding ProxyEnabled, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Foreground="{Binding ProxyColor}" Kind="CheckCircle" Grid.Row="2" Grid.Column="1" Margin="0 2"
+                    ToolTip="{Binding ProxyStatusText}" />
+                <materialDesign:PackIcon
+                    Visibility="{Binding ProxyEnabled, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                    Foreground="Crimson" Kind="CloseCircle" Grid.Row="2" Grid.Column="1" Margin="0 2"
+                    ToolTip="{Binding ProxyStatusText}" />
             </Grid>
             
             <Button Grid.Column="3" Command="{Binding SettingsCommand}" Margin="5" 

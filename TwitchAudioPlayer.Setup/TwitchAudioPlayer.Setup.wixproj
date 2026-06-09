@@ -17,6 +17,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <OutputName>TwitchAudioPlayer</OutputName>
     <OutputType>Package</OutputType>
+    <DefineSolutionProperties>false</DefineSolutionProperties>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <OutputPath>bin\$(Configuration)\</OutputPath>
@@ -31,7 +32,7 @@
     <Compile Include="ComponentsGenerated.wxs" />
     <Compile Include="Product.wxs" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(SkipAppProjectReference)' != 'true'">
     <ProjectReference Include="..\TwitchAudioPlayer.WPF\TwitchAudioPlayer.WPF.csproj">
       <Name>TwitchAudioPlayer.WPF</Name>
       <Project>{573d21f0-16e1-4b26-90f9-4143cf04c3df}</Project>
@@ -60,7 +61,7 @@
   <Target Name="BeforeBuild">
     <PropertyGroup>
       <DefineConstants>
-        BasePath=..\TwitchAudioPlayer.WPF\bin\Release\net9.0-windows10.0.22621.0\publish;$(DefineConstants);
+        BasePath=..\TwitchAudioPlayer.WPF\bin\$(Configuration)\net9.0-windows10.0.22621.0\publish;$(DefineConstants);
       </DefineConstants>
     </PropertyGroup>
     <HeatDirectory 
@@ -79,6 +80,6 @@
   </Target>
 
   <PropertyGroup>
-    <HarvestDirectory>..\TwitchAudioPlayer.WPF\bin\Release\net9.0-windows10.0.22621.0\publish</HarvestDirectory>
+    <HarvestDirectory>..\TwitchAudioPlayer.WPF\bin\$(Configuration)\net9.0-windows10.0.22621.0\publish</HarvestDirectory>
   </PropertyGroup>
 </Project>
