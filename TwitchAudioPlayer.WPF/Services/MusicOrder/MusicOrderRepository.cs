@@ -83,6 +83,23 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder
             command.Parameters.AddWithValue("@Played", (int)played);
             command.ExecuteNonQuery();
         }
+
+        public int RestoreRecentInvalidOrders(DateTimeOffset since)
+        {
+            using var connection = new SQLiteConnection(_connectionString);
+            connection.Open();
+            const string updateQuery = @"
+        UPDATE MusicOrders
+        SET Played = @NotPlayed
+        WHERE IsActive = 1
+          AND Played = @Invalid
+          AND Date >= @Date";
+            using var command = new SQLiteCommand(updateQuery, connection);
+            command.Parameters.AddWithValue("@NotPlayed", (int)Played.NotPlayed);
+            command.Parameters.AddWithValue("@Invalid", (int)Played.Invalid);
+            command.Parameters.AddWithValue("@Date", since.ToString("o"));
+            return command.ExecuteNonQuery();
+        }
         
         public void MarkPlayed(MusicOrder order, Played played)
         {

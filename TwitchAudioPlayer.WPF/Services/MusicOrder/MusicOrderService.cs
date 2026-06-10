@@ -88,6 +88,10 @@ public class MusicOrderService
 
     public void EnsureOldTracksDisabled()
     {
+        var restoredCount = _musicOrderRepository.RestoreRecentInvalidOrders(DateTimeOffset.Now.AddDays(-2));
+        if (restoredCount > 0)
+            Log.Information("Restored {Count} recent invalid music orders for retry.", restoredCount);
+
         _musicOrderRepository.MarkOrdersInactiveBefore(DateTimeOffset.Now.AddDays(-3), Played.Played);
     }
     
