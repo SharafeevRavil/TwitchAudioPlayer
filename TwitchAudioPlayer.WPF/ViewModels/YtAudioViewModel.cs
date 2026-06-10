@@ -46,7 +46,12 @@ public partial class YtAudioViewModel : ObservableObject
             await Task.Delay(500);
             TwitchColor = "Green";
         });
-        _proxyService.StatusChanged += (_, status) => dispatcher.Invoke(() => UpdateProxyStatus(status));
+        _proxyService.StatusChanged += (_, status) => dispatcher.Invoke(async () =>
+        {
+            UpdateProxyStatus(status);
+            if (status.Status is ProxyRuntimeStatus.Running or ProxyRuntimeStatus.Disabled)
+                await RetryFailedTracksAsync();
+        });
         UpdateProxyStatus(_proxyService.CurrentStatus);
         _musicOrderService.OrdersAdded += (_, e) => dispatcher.Invoke(async () => await OnOrdersAdded(e));
 
@@ -64,8 +69,7 @@ public partial class YtAudioViewModel : ObservableObject
 
         SetGridLengths();
 
-        Loading = true;
-        dispatcher.Invoke(async () => await InitOrders());
+        dispatcher.Invoke(async () => await ReloadOrdersAsync(startTrackLoading: true));
     }
 
     // Прерывает проигрывание трека в случае, если он уже длится дольше, чем указано в настройках
@@ -83,8 +87,8 @@ public partial class YtAudioViewModel : ObservableObject
         // если включен автоплей - если играет другая очередь - ищем в очереди доступные треки и играем первый 
         if (!ReferenceEquals(_player.CurrentPlaylist, _playlist))
         {
-            var viewModel = QueuedTracksViewModels.FirstOrDefault();
-            if (viewModel != null) await PlayTrackAsync(viewModel.AudioTrackViewModel);
+            var viewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
+            if (viewModel?.AudioTrackViewModel != null) await PlayTrackAsync(viewModel.AudioTrackViewModel);
         }
     }
 
@@ -113,6 +117,7 @@ public partial class YtAudioViewModel : ObservableObject
 
     private readonly List<MusicOrderWithTrack> _tracks = [];
     private YouTubeQueuePlaylist _playlist = new([]);
+    private readonly SemaphoreSlim _reloadGate = new(1, 1);
 
     private PlaylistTrack? _currentTrack;
     private PlayerState? _interceptedState;
@@ -123,10 +128,10 @@ public partial class YtAudioViewModel : ObservableObject
         _currentTrack = track;
 
         // play 1st from queued
-        var playedVm = PlayedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel.AudioTrack == track);
+        var playedVm = PlayedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel?.AudioTrack == track);
         if (playedVm != null)
         {
-            var index = QueuedTracksViewModels.FirstOrDefault()?.AudioTrackViewModel.Index;
+            var index = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null)?.AudioTrackViewModel?.Index;
             if (index.HasValue)
             {
                 await _player.PlayTrackFromQueueAsync(index.Value, TimeSpan.Zero);
@@ -136,6 +141,9 @@ public partial class YtAudioViewModel : ObservableObject
 
         foreach (var trackViewModel in PlayedTracksViewModels.Concat(QueuedTracksViewModels))
         {
+            if (trackViewModel.AudioTrackViewModel == null)
+                continue;
+
             var isThisTrack = trackViewModel.AudioTrackViewModel.AudioTrack == track;
 
             trackViewModel.AudioTrackViewModel.IsPlaying = isThisTrack;
@@ -143,7 +151,7 @@ public partial class YtAudioViewModel : ObservableObject
         }
 
         //if queued count = 0 then continue play interceptedPlaylist
-        if (ReferenceEquals(_player.CurrentPlaylist, _playlist) && QueuedTracksViewModels.Count == 0)
+        if (ReferenceEquals(_player.CurrentPlaylist, _playlist) && QueuedTracksViewModels.All(x => x.AudioTrackViewModel == null))
         {
             if (_interceptedState == null)
             {
@@ -177,28 +185,44 @@ public partial class YtAudioViewModel : ObservableObject
     private bool CheckSettings() => _userSettingsManager.Settings is
         { DaWidgetToken: not null, TwitchRewardCost: not null, TwitchRewardPrompt: not null, TwitchRewardTitle: not null};
     
-    private async Task InitOrders()
+    private async Task ReloadOrdersAsync(bool startTrackLoading)
     {
-        if(!Loading) return;
-        if (!CheckSettings()) return;
-        
-        _musicOrderService.EnsureOldTracksDisabled();
-        var orders = await _musicOrderService.GetTracks();
+        if (!await _reloadGate.WaitAsync(0))
+            return;
 
-        var playedComparer = new PlayedComparer();
-        var orderedTracks = orders
-            .OrderBy(x => x.MusicOrder.Played, playedComparer)
-            .ThenBy(x => x.MusicOrder.Date)
-            .ToList();
-
-        _playlist = new YouTubeQueuePlaylist([]);
-        PlayedTracksViewModels.Clear();
-        QueuedTracksViewModels.Clear();
-        AddTracks(orderedTracks);
-
-        await SwitchTrackLoadingAsync();
-        Loading = false;
+        Loading = true;
         NotifyCanTouchButtons();
+
+        try
+        {
+            if (!CheckSettings()) return;
+
+            await _proxyService.EnsureProxyAsync();
+
+            _musicOrderService.EnsureOldTracksDisabled();
+            var orders = await _musicOrderService.GetTracks();
+
+            var playedComparer = new PlayedComparer();
+            var orderedTracks = orders
+                .OrderBy(x => x.MusicOrder.Played, playedComparer)
+                .ThenBy(x => x.MusicOrder.Date)
+                .ToList();
+
+            _playlist = new YouTubeQueuePlaylist([]);
+            _tracks.Clear();
+            PlayedTracksViewModels.Clear();
+            QueuedTracksViewModels.Clear();
+            AddTracks(orderedTracks);
+
+            if (startTrackLoading)
+                await SwitchTrackLoadingAsync();
+        }
+        finally
+        {
+            Loading = false;
+            NotifyCanTouchButtons();
+            _reloadGate.Release();
+        }
     }
 
 
@@ -209,18 +233,59 @@ public partial class YtAudioViewModel : ObservableObject
 
     private void AddTrack(MusicOrderWithTrack track)
     {
-        _tracks.Add(track);
-
         var trackViewModel = new YtAudioTrackViewModel(track);
-        trackViewModel.AudioTrackViewModel.PlayPauseRequested += async (_, args) =>
-            await PlayPauseTrackAsync(args.ViewModel, !args.IsPlaying);
+        trackViewModel.RetryRequested += async (_, vm) => await RetryTrackAsync(vm);
+        if (trackViewModel.AudioTrackViewModel != null)
+            AttachPlayableTrack(track, trackViewModel);
+
         if (track.MusicOrder.Played == Played.Played)
             PlayedTracksViewModels.Add(trackViewModel);
         else
             QueuedTracksViewModels.Add(trackViewModel);
+    }
 
+    private void AttachPlayableTrack(MusicOrderWithTrack track, YtAudioTrackViewModel trackViewModel)
+    {
+        if (track.PlaylistTrack == null || trackViewModel.AudioTrackViewModel == null)
+            return;
+
+        _tracks.Add(track);
+        trackViewModel.AudioTrackViewModel.PlayPauseRequested += async (_, args) =>
+            await PlayPauseTrackAsync(args.ViewModel, !args.IsPlaying);
         var index = _playlist.AddTrack(track.PlaylistTrack);
         trackViewModel.AudioTrackViewModel.Index = index;
+    }
+
+    private async Task RetryTrackAsync(YtAudioTrackViewModel trackViewModel)
+    {
+        if (!trackViewModel.CanRetry)
+            return;
+
+        trackViewModel.IsRetrying = true;
+
+        try
+        {
+            var reloaded = await _musicOrderService.LoadTrack(trackViewModel.AudioTrack.MusicOrder);
+            trackViewModel.ReplaceAudioTrack(reloaded);
+
+            if (trackViewModel.AudioTrackViewModel != null)
+                AttachPlayableTrack(trackViewModel.AudioTrack, trackViewModel);
+        }
+        finally
+        {
+            trackViewModel.IsRetrying = false;
+        }
+    }
+
+    private async Task RetryFailedTracksAsync()
+    {
+        var failedTracks = QueuedTracksViewModels
+            .Concat(PlayedTracksViewModels)
+            .Where(x => x is { IsFailed: true, CanRetry: true, IsRetrying: false })
+            .ToList();
+
+        foreach (var track in failedTracks)
+            await RetryTrackAsync(track);
     }
 
     private async Task PlayPauseTrackAsync(AudioTrackViewModel viewModel, bool toPlay)
@@ -258,7 +323,8 @@ public partial class YtAudioViewModel : ObservableObject
     {
         _maxYtMinutes = _userSettingsManager.Settings.MaxMinutesLength;
         NotifyCanTouchButtons();
-        dispatcher?.Invoke(InitOrders);
+        if (dispatcher != null)
+            dispatcher.Invoke(async () => await RetryFailedTracksAsync());
     }
 
     [RelayCommand]

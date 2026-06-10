@@ -16,7 +16,33 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <views:AudioTrackControl Grid.Column="0" DataContext="{Binding AudioTrackViewModel}" />
+        <views:AudioTrackControl Grid.Column="0" DataContext="{Binding AudioTrackViewModel}"
+                                 Visibility="{Binding IsFailed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+        <Grid Grid.Column="0" Margin="0 2"
+              Visibility="{Binding IsFailed, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <materialDesign:PackIcon Grid.Column="0" Kind="AlertCircle" Width="28" Height="28"
+                                     Foreground="Crimson" Margin="8 0" VerticalAlignment="Center" />
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding FailedTitle}" FontWeight="Bold" FontSize="13"
+                           Foreground="{DynamicResource MaterialDesignBody}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding FailedMessage}" FontSize="11" Foreground="Crimson"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <Button Grid.Column="2" Command="{Binding RetryCommand}"
+                    Style="{StaticResource MaterialDesignIconButton}"
+                    Width="32" Height="32" Margin="4 0 8 0"
+                    ToolTip="Retry loading this track">
+                <materialDesign:PackIcon Kind="Refresh" />
+            </Button>
+        </Grid>
         <Image Grid.Column="1" Source="{Binding SourceImage}" Width="25" Height="25" 
                Margin="0 0 10 0" Stretch="UniformToFill" VerticalAlignment="Center" />
     </Grid>

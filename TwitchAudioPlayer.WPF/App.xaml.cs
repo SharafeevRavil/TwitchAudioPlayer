@@ -37,6 +37,8 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        Environment.SetEnvironmentVariable("SLAVA_UKRAINI", "1", EnvironmentVariableTarget.Process);
+
         var services = new ServiceCollection();
         ConfigureServices(services);
 

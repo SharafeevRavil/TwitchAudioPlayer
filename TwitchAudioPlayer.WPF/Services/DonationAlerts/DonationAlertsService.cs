@@ -34,7 +34,7 @@ public class DonationAlertsService
 
         SetSettings();
 
-        _httpClient = new HttpClient();
+        _httpClient = new HttpClient(new HttpClientHandler { UseProxy = false }, disposeHandler: true);
     }
 
     private void SetSettings()

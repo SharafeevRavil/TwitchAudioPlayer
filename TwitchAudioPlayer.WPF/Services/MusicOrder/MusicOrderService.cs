@@ -94,16 +94,22 @@ public class MusicOrderService
     public async Task<List<MusicOrderWithTrack>> GetTracks()
     {
         var orders = _musicOrderRepository.GetValidOrders();
-        return (await GetMusicOrderWithTracks(orders)).Available;
+        return (await GetMusicOrderWithTracks(orders)).Results;
     }
 
-    private async Task<(List<MusicOrderWithTrack> Available, List<MusicOrder> WithError)> GetMusicOrderWithTracks(List<MusicOrder> orders)
+    public async Task<MusicOrderWithTrack> LoadTrack(MusicOrder order)
+    {
+        var (track, error) = await _youTubeService.GetPlaylistTrack(order.Uri);
+        return CreateTrackResult(order, track, error);
+    }
+
+    private async Task<(List<MusicOrderWithTrack> Results, List<MusicOrder> Invalid)> GetMusicOrderWithTracks(List<MusicOrder> orders)
     {
         var trackTasks = orders.Select(x => Task.Run(() => _youTubeService.GetPlaylistTrack(x.Uri)));
         var tracks = await Task.WhenAll(trackTasks);
 
-        var toReturn = new List<MusicOrderWithTrack>();
-        var ordersToDelete = new List<MusicOrder>();
+        var results = new List<MusicOrderWithTrack>();
+        var invalidOrders = new List<MusicOrder>();
         for (var i = 0; i < orders.Count; i++)
         {
             var (track, error) = tracks[i];
@@ -112,23 +118,25 @@ public class MusicOrderService
                 // удаляю треки, для которых нет ютуб видео или это бесконечный стрим (его не получить)
                 case YtTrackError.YtNotFound:
                 case YtTrackError.TrackZeroDuration:
-                    ordersToDelete.Add(orders[i]);
+                    invalidOrders.Add(orders[i]);
                     break;
                 case YtTrackError.FailedToGetStream:
+                case YtTrackError.FailedToGetInfo:
+                    results.Add(CreateTrackResult(orders[i], track, error));
                     break;
                 case null:
                     if (track == null) break;
-                    toReturn.Add(new MusicOrderWithTrack { MusicOrder = orders[i], PlaylistTrack = track });
+                    results.Add(CreateTrackResult(orders[i], track, null));
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
         }
 
-        if (ordersToDelete.Count > 0)
-            RemoveInvalidOrders(ordersToDelete);
+        if (invalidOrders.Count > 0)
+            RemoveInvalidOrders(invalidOrders);
 
-        return (toReturn, ordersToDelete);
+        return (results, invalidOrders);
     }
 
     private void RemoveInvalidOrders(IEnumerable<MusicOrder> orders)
@@ -146,12 +154,32 @@ public class MusicOrderService
     {
         Log.Information("OnMusicOrdersAdd вызван.");
         _musicOrderRepository.AddOrders(e);
-        var (orders, errors) = await GetMusicOrderWithTracks(e);
+        var (orders, invalidOrders) = await GetMusicOrderWithTracks(e);
         OrdersAdded?.Invoke(this, orders);
         if (sender is NewOrdersNotifier notifier)
         {
-            await notifier.OrdersAccepted(orders.Select(x => x.MusicOrder).ToList(), true);
-            await notifier.OrdersAccepted(errors, false);
+            await notifier.OrdersAccepted(orders.Where(x => x.IsAvailable).Select(x => x.MusicOrder).ToList(), true);
+            await notifier.OrdersAccepted(invalidOrders, false);
         }
     }
+
+    private static MusicOrderWithTrack CreateTrackResult(MusicOrder order, PlaylistTrack? track, YtTrackError? error) =>
+        new()
+        {
+            MusicOrder = order,
+            PlaylistTrack = track,
+            Error = error,
+            ErrorMessage = GetErrorMessage(error)
+        };
+
+    private static string? GetErrorMessage(YtTrackError? error) =>
+        error switch
+        {
+            null => null,
+            YtTrackError.YtNotFound => "YouTube video is unavailable.",
+            YtTrackError.TrackZeroDuration => "Live streams and zero-duration videos are not supported.",
+            YtTrackError.FailedToGetInfo => "Could not load YouTube video info. Check proxy and retry.",
+            YtTrackError.FailedToGetStream => "Could not load YouTube audio stream. Check proxy and retry.",
+            _ => "Could not load YouTube track."
+        };
 }

@@ -4,8 +4,13 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder;
 
 public class MusicOrderWithTrack
 {
-    public MusicOrder MusicOrder { get; set; }
-    public PlaylistTrack PlaylistTrack { get; set; }
+    public MusicOrder MusicOrder { get; set; } = null!;
+    public PlaylistTrack? PlaylistTrack { get; set; }
+    public YtTrackError? Error { get; set; }
+    public string? ErrorMessage { get; set; }
+
+    public bool IsAvailable => PlaylistTrack != null && Error == null;
+    public bool CanRetry => Error is YtTrackError.FailedToGetInfo or YtTrackError.FailedToGetStream;
 }
 
 public class MusicOrder

@@ -4,6 +4,7 @@ using MusicX.Shared.Player;
 using Serilog;
 using TwitchAudioPlayer.WPF.Services.Proxy;
 using YoutubeExplode;
+using YoutubeExplode.Exceptions;
 using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
@@ -14,6 +15,7 @@ public enum YtTrackError
     YtNotFound = 10,
     TrackZeroDuration = 20,
     FailedToGetStream = 30,
+    FailedToGetInfo = 40,
 }
 
 public record YtTrackData(
@@ -48,11 +50,11 @@ public class YouTubeService : IDisposable
         CancellationToken cancellationToken = default)
     {
         _logger.Information("Start processing YouTube track");
-        var video = await GetTrackInfo(url, cancellationToken);
+        var (video, infoError) = await GetTrackInfo(url, cancellationToken);
         if (video == null)
         {
             _logger.Warning("Failed to get YouTube video info");
-            return (null, YtTrackError.YtNotFound);
+            return (null, infoError ?? YtTrackError.FailedToGetInfo);
         }
 
         _logger.Information("Received YouTube video info: {Title}", video.Title);
@@ -112,17 +114,27 @@ public class YouTubeService : IDisposable
         return BitConverter.ToInt64(buffer, 0);
     }
 
-    private async Task<Video?> GetTrackInfo(string url, CancellationToken cancellationToken = default)
+    private async Task<(Video? Video, YtTrackError? Error)> GetTrackInfo(string url, CancellationToken cancellationToken = default)
     {
         try
         {
             var youtube = await CreateYoutubeClientAsync(cancellationToken);
-            return await youtube.Videos.GetAsync(url, cancellationToken);
+            return (await youtube.Videos.GetAsync(url, cancellationToken), null);
+        }
+        catch (VideoUnavailableException e)
+        {
+            _logger.Error(e, "YouTube video is unavailable");
+            return (null, YtTrackError.YtNotFound);
+        }
+        catch (VideoRequiresPurchaseException e)
+        {
+            _logger.Error(e, "YouTube video requires purchase");
+            return (null, YtTrackError.YtNotFound);
         }
         catch (Exception e)
         {
             _logger.Error(e, "Error while getting YouTube track info");
-            return null;
+            return (null, YtTrackError.FailedToGetInfo);
         }
     }
 
@@ -130,7 +142,7 @@ public class YouTubeService : IDisposable
     {
         try
         {
-            var video = await GetTrackInfo(url, cancellationToken);
+            var (video, _) = await GetTrackInfo(url, cancellationToken);
             if (video == null)
                 return null;
 
