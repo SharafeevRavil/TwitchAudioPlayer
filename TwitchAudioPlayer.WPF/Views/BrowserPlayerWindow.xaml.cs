@@ -24,6 +24,7 @@ public partial class BrowserPlayerWindow : Window
     private const int WmszBottomLeft = 7;
     private const int WmszBottomRight = 8;
     private const double AspectRatio = 16d / 9d;
+    private const int PlayerChromeHeight = 114;
 
     private readonly BrowserPlayerService _browserPlayer;
     private readonly BrowserPlayerViewModel _viewModel;
@@ -43,6 +44,8 @@ public partial class BrowserPlayerWindow : Window
         SourceInitialized += OnSourceInitialized;
         SizeChanged += OnSizeChanged;
         _viewModel.PinChanged += (_, value) => Topmost = value;
+        _viewModel.MinimizeRequested += (_, _) => WindowState = WindowState.Minimized;
+        _viewModel.FullScreenRequested += (_, _) => ToggleFullScreen();
         _browserPlayer.LoadRequested += BrowserPlayerOnLoadRequested;
         _browserPlayer.PlayRequested += BrowserPlayerOnPlayRequested;
         _browserPlayer.PauseRequested += BrowserPlayerOnPauseRequested;
@@ -235,7 +238,7 @@ public partial class BrowserPlayerWindow : Window
         _isResizingToAspect = true;
         try
         {
-            var targetHeight = Width / AspectRatio;
+            var targetHeight = Width / AspectRatio + PlayerChromeHeight;
             if (Math.Abs(Height - targetHeight) > 1)
                 Height = Math.Max(MinHeight, targetHeight);
         }
@@ -261,8 +264,9 @@ public partial class BrowserPlayerWindow : Window
     {
         var width = Math.Max(1, rect.Right - rect.Left);
         var height = Math.Max(1, rect.Bottom - rect.Top);
-        var targetWidth = (int)Math.Round(height * AspectRatio);
-        var targetHeight = (int)Math.Round(width / AspectRatio);
+        var videoHeight = Math.Max(1, height - PlayerChromeHeight);
+        var targetWidth = (int)Math.Round(videoHeight * AspectRatio);
+        var targetHeight = (int)Math.Round(width / AspectRatio + PlayerChromeHeight);
 
         switch (edge)
         {
@@ -303,8 +307,18 @@ public partial class BrowserPlayerWindow : Window
 
     private void DragStrip_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (WindowState == WindowState.Maximized)
+            return;
+
         if (e.ChangedButton == MouseButton.Left)
             DragMove();
+    }
+
+    private void ToggleFullScreen()
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
     }
 
     private static string GetPlayerPageFolder() =>

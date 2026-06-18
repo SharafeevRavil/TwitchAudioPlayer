@@ -8,9 +8,9 @@
         mc:Ignorable="d"
         Title="Twitch Audio Player Video"
         Width="960"
-        Height="540"
+        Height="654"
         MinWidth="320"
-        MinHeight="180"
+        MinHeight="294"
         WindowStyle="None"
         ResizeMode="CanResizeWithGrip"
         AllowsTransparency="True"
@@ -20,73 +20,225 @@
         d:DataContext="{d:DesignInstance Type=viewModels:BrowserPlayerViewModel, IsDesignTimeCreatable=True}"
         xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels">
     <Grid Background="Transparent">
-        <Grid Visibility="{Binding HasVisibleContent, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Grid Visibility="{Binding IsArtworkVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Image Source="{Binding ArtworkCoverUrl}"
-                       Stretch="UniformToFill"
-                       Opacity="0.72">
-                    <Image.Effect>
-                        <BlurEffect Radius="32" />
-                    </Image.Effect>
-                </Image>
-                <Rectangle Fill="#55000000" />
-                <Grid Width="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
-                      Height="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      Margin="42">
-                    <Border Background="#22000000">
-                        <Image Source="{Binding ArtworkCoverUrl}" Stretch="UniformToFill" />
-                    </Border>
-                </Grid>
-                <Border VerticalAlignment="Bottom"
-                        Background="#B0000000"
-                        Padding="18,12">
-                    <StackPanel>
-                        <TextBlock Text="{Binding ArtworkTitle}"
-                                   Foreground="White"
-                                   FontSize="22"
-                                   FontWeight="Bold"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding ArtworkArtist}"
-                                   Foreground="#DDFFFFFF"
-                                   FontSize="15"
-                                   TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                </Border>
+        <Grid Visibility="{Binding HasVisibleContent, Converter={StaticResource BoolToVisibilityConverter}}"
+              Background="#FF101010">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="74" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0"
+                  Background="#FF2F2F2F"
+                  MouseLeftButtonDown="DragStrip_OnMouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="Player"
+                           Foreground="White"
+                           FontWeight="Bold"
+                           FontSize="14"
+                           VerticalAlignment="Center"
+                           Margin="12,0,10,0" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding HeaderText}"
+                           Foreground="#DDFFFFFF"
+                           FontSize="12"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+
+                <Button Grid.Column="2"
+                        Command="{Binding TogglePinCommand}"
+                        Width="40"
+                        Height="40"
+                        ToolTip="Keep window above other apps"
+                        Style="{StaticResource MaterialDesignIconButton}">
+                    <materialDesign:PackIcon Kind="{Binding PinIcon}"
+                                             Foreground="#FF8A49E6"
+                                             Width="22"
+                                             Height="22" />
+                </Button>
+                <Button Grid.Column="3"
+                        Command="{Binding ToggleFullScreenCommand}"
+                        Width="40"
+                        Height="40"
+                        ToolTip="Fullscreen"
+                        Style="{StaticResource MaterialDesignIconButton}">
+                    <materialDesign:PackIcon Kind="{Binding FullScreenIcon}"
+                                             Foreground="#FF8A49E6"
+                                             Width="22"
+                                             Height="22" />
+                </Button>
+                <Button Grid.Column="4"
+                        Command="{Binding MinimizeCommand}"
+                        Width="40"
+                        Height="40"
+                        ToolTip="Minimize"
+                        Style="{StaticResource MaterialDesignIconButton}">
+                    <materialDesign:PackIcon Kind="WindowMinimize"
+                                             Foreground="#FF8A49E6"
+                                             Width="22"
+                                             Height="22" />
+                </Button>
             </Grid>
 
-            <wv2:WebView2 x:Name="YoutubeWebView"
-                          Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
-        </Grid>
+            <Grid Grid.Row="1"
+                  Background="Black">
+                <Grid Visibility="{Binding IsArtworkVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Image Source="{Binding ArtworkCoverUrl}"
+                           Stretch="UniformToFill"
+                           Opacity="0.72">
+                        <Image.Effect>
+                            <BlurEffect Radius="32" />
+                        </Image.Effect>
+                    </Image>
+                    <Rectangle Fill="#55000000" />
+                    <Grid Width="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualWidth}"
+                          Height="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualWidth}"
+                          MaxWidth="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
+                          MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          Margin="36">
+                        <Border Background="#22000000">
+                            <Image Source="{Binding ArtworkCoverUrl}" Stretch="UniformToFill" />
+                        </Border>
+                    </Grid>
+                    <Border VerticalAlignment="Bottom"
+                            Background="#B0000000"
+                            Padding="18,12">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ArtworkTitle}"
+                                       Foreground="White"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ArtworkArtist}"
+                                       Foreground="#DDFFFFFF"
+                                       FontSize="15"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
-        <Grid Height="36"
-              VerticalAlignment="Top"
-              Background="#01000000"
-              MouseLeftButtonDown="DragStrip_OnMouseLeftButtonDown">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Opacity" Value="0" />
-                    <Style.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Opacity" Value="1" />
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-            <Button Command="{Binding TogglePinCommand}"
-                    Width="32"
-                    Height="32"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Margin="0,2,6,0"
-                    ToolTip="Keep window above other apps"
-                    Style="{StaticResource MaterialDesignIconButton}">
-                <materialDesign:PackIcon Kind="{Binding PinIcon}"
-                                         Foreground="White"
-                                         Width="20"
-                                         Height="20" />
-            </Button>
+                <wv2:WebView2 x:Name="YoutubeWebView"
+                              IsHitTestVisible="False"
+                              Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+            </Grid>
+
+            <Grid Grid.Row="2"
+                  Background="#FF444444">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="22" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0"
+                      Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="44" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding CurrentPositionText}"
+                               Foreground="White"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center" />
+                    <Slider Grid.Column="1"
+                            Minimum="0"
+                            Maximum="{Binding DurationSeconds}"
+                            Value="{Binding CurrentPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding DurationText}"
+                               Foreground="White"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center" />
+                </Grid>
+
+                <Grid Grid.Row="1"
+                      Margin="10,0,10,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Image Source="{Binding CurrentCoverUrl}"
+                               Width="44"
+                               Height="44"
+                               Margin="0,0,10,0" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CurrentTitle}"
+                                       Foreground="White"
+                                       FontWeight="Bold"
+                                       FontSize="14"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="320" />
+                            <TextBlock Text="{Binding CurrentArtist}"
+                                       Foreground="#DDFFFFFF"
+                                       FontSize="12"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="320" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Button Command="{Binding PreviousCommand}"
+                                Width="40"
+                                Height="40"
+                                Margin="0,0,6,0"
+                                Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
+                            <materialDesign:PackIcon Kind="FastRewind" />
+                        </Button>
+                        <Button Command="{Binding PlayPauseCommand}"
+                                Width="40"
+                                Height="40"
+                                Margin="0,0,6,0"
+                                Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
+                            <materialDesign:PackIcon Kind="{Binding PlayPauseIcon}" />
+                        </Button>
+                        <Button Command="{Binding NextCommand}"
+                                Width="40"
+                                Height="40"
+                                Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
+                            <materialDesign:PackIcon Kind="FastForward" />
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center">
+                        <Button Command="{Binding MuteCommand}"
+                                Width="40"
+                                Height="40"
+                                Margin="0,0,8,0"
+                                Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
+                            <materialDesign:PackIcon Kind="{Binding VolumeIcon}" />
+                        </Button>
+                        <Slider Minimum="0"
+                                Maximum="1"
+                                Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Width="180"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
         </Grid>
     </Grid>
 </Window>
