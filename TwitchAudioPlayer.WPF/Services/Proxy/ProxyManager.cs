@@ -135,12 +135,14 @@ public sealed class ProxyManager : IProxyService, IAsyncDisposable
         }
 
         var previousLastWorkingNodeId = settings.LastWorkingNodeId;
+        var previousLocalHttpPort = settings.LocalHttpPort;
         var status = await ApplyAsync(settings, cancellationToken);
         if (status.IsHealthy)
-            _lastAppliedFingerprint = fingerprint;
+            _lastAppliedFingerprint = BuildSettingsFingerprint(settings);
 
         if (_settingsManager is not null &&
-            !string.Equals(previousLastWorkingNodeId, settings.LastWorkingNodeId, StringComparison.OrdinalIgnoreCase))
+            (!string.Equals(previousLastWorkingNodeId, settings.LastWorkingNodeId, StringComparison.OrdinalIgnoreCase) ||
+             previousLocalHttpPort != settings.LocalHttpPort))
         {
             await _settingsManager.SaveSettingsAsync();
         }
@@ -152,6 +154,9 @@ public sealed class ProxyManager : IProxyService, IAsyncDisposable
     {
         var status = await ApplyAsync(_settingsManager?.Settings.ProxySettings ?? _lastSettings ?? new ProxySettings(),
             cancellationToken);
+
+        if (_settingsManager is not null)
+            await _settingsManager.SaveSettingsAsync();
 
         if (status.Mode == ProxyMode.Disabled)
             return new ProxyTestResult(true, status.Message, null, null);
@@ -246,9 +251,16 @@ public sealed class ProxyManager : IProxyService, IAsyncDisposable
         CancellationToken cancellationToken,
         bool stopOnHealthError = false)
     {
-        var localHttpPort = GetAvailablePort(settings.LocalHttpPort);
+        var requestedLocalHttpPort = NormalizeLocalPort(settings.LocalHttpPort);
+        var localHttpPort = GetAvailablePort(requestedLocalHttpPort);
+        if (settings.LocalHttpPort != localHttpPort)
+            settings.LocalHttpPort = localHttpPort;
 
-        SetStatus(mode, ProxyRuntimeStatus.Starting, $"Starting proxy node '{node.Name}'...", node, null, false,
+        var portMessagePrefix = localHttpPort == requestedLocalHttpPort
+            ? string.Empty
+            : $"Local proxy port was changed from {requestedLocalHttpPort} to {localHttpPort} because the requested port is busy. ";
+
+        SetStatus(mode, ProxyRuntimeStatus.Starting, $"{portMessagePrefix}Starting proxy node '{node.Name}'...", node, null, false,
             localHttpPort);
 
         XrayConfigFile config;
@@ -264,7 +276,7 @@ public sealed class ProxyManager : IProxyService, IAsyncDisposable
         }
 
         var proxyUri = new Uri($"http://{config.LocalAddress}:{config.LocalPort}");
-        SetStatus(mode, ProxyRuntimeStatus.Checking, $"Checking proxy node '{node.Name}'...", node, proxyUri, false,
+        SetStatus(mode, ProxyRuntimeStatus.Checking, $"{portMessagePrefix}Checking proxy node '{node.Name}'...", node, proxyUri, false,
             localHttpPort);
 
         var health = await _healthChecker.CheckAsync(proxyUri, settings.HealthCheckTimeout, settings.HealthCheckUrl,
@@ -281,7 +293,7 @@ public sealed class ProxyManager : IProxyService, IAsyncDisposable
         LastWorkingNodeId = node.Id;
         settings.LastWorkingNodeId = node.Id;
 
-        return SetStatus(mode, ProxyRuntimeStatus.Running, $"Proxy node '{node.Name}' is working.", node, proxyUri, true,
+        return SetStatus(mode, ProxyRuntimeStatus.Running, $"{portMessagePrefix}Proxy node '{node.Name}' is working.", node, proxyUri, true,
             localHttpPort);
     }
 
@@ -349,8 +361,14 @@ public sealed class ProxyManager : IProxyService, IAsyncDisposable
 
     private static int GetAvailablePort(int preferredPort)
     {
-        if (preferredPort is > 0 and <= 65535 && IsPortAvailable(preferredPort))
+        if (IsPortAvailable(preferredPort))
             return preferredPort;
+
+        for (var port = preferredPort + 1; port <= 65535 && port < preferredPort + 100; port++)
+        {
+            if (IsPortAvailable(port))
+                return port;
+        }
 
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -363,6 +381,9 @@ public sealed class ProxyManager : IProxyService, IAsyncDisposable
             listener.Stop();
         }
     }
+
+    private static int NormalizeLocalPort(int port) =>
+        port is > 0 and <= 65535 ? port : ProxySettings.DefaultLocalHttpPort;
 
     private static bool IsPortAvailable(int port)
     {

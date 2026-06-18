@@ -104,6 +104,13 @@
                         IsEnabled="{Binding IsProxyTestEnabled}"
                         Style="{StaticResource MaterialDesignRaisedButton}" Margin="10,0,0,0" />
             </Grid>
+            <TextBlock Text="{Binding ProxyPortNoticeText}"
+                       Visibility="{Binding IsProxyPortNoticeVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                       FontSize="11"
+                       FontStyle="Italic"
+                       Foreground="#CCFFA000"
+                       Margin="0,-6,0,10"
+                       TextWrapping="Wrap" />
             <TextBlock Text="{Binding ProxyTestStatusText}" FontStyle="Italic" Margin="0,0,0,10" TextWrapping="Wrap" />
 
             <TextBlock Text="Настройки Twitch" FontSize="24" FontWeight="Bold" Margin="0,0,0,10" />

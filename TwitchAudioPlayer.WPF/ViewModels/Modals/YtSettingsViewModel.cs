@@ -29,6 +29,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
 
         var dispatcher = Dispatcher.CurrentDispatcher;
         userSettingsManager.SettingsChanged += (_, _) => dispatcher.Invoke(NotifySettingsChanged);
+        _proxyService.StatusChanged += (_, status) => dispatcher.Invoke(() => UpdateProxyPortFromStatus(status));
 
         // YT
         MaxMinutesLength = _userSettingsManager.Settings.MaxMinutesLength;
@@ -90,6 +91,8 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     [ObservableProperty] private string? _singleNodeUri;
     [ObservableProperty] private string? _subscriptionUrl;
     [ObservableProperty] private int _localHttpPort;
+    [ObservableProperty] private string _proxyPortNoticeText = "";
+    [ObservableProperty] private bool _isProxyPortNoticeVisible;
     [ObservableProperty] private string _proxyTestStatusText = "";
     [ObservableProperty] private bool _isProxyTesting;
     [ObservableProperty] private bool _isProxyTestEnabled = true;
@@ -114,12 +117,15 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     {
         IsProxyTesting = true;
         ProxyTestStatusText = "Testing proxy...";
+        var requestedPort = LocalHttpPort;
 
         try
         {
             ApplyProxySettings();
             await _userSettingsManager.SaveSettingsAsync();
             var result = await _proxyService.TestProxyAsync();
+            LocalHttpPort = _userSettingsManager.Settings.ProxySettings.LocalHttpPort;
+            UpdateProxyPortNotice(requestedPort, LocalHttpPort);
             ProxyTestStatusText = result.Success ? "Proxy test succeeded" : result.Message;
         }
         finally
@@ -136,6 +142,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         SingleNodeUri = settings.SingleNodeUri;
         SubscriptionUrl = settings.SubscriptionUrl;
         LocalHttpPort = settings.LocalHttpPort;
+        UpdateProxyPortFromStatus(_proxyService.CurrentStatus);
         ProxyTestStatusText = _proxyService.CurrentStatus.Message;
     }
 
@@ -147,6 +154,35 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         settings.SingleNodeUri = SingleNodeUri;
         settings.SubscriptionUrl = SubscriptionUrl;
         settings.LocalHttpPort = LocalHttpPort;
+    }
+
+    private void UpdateProxyPortFromStatus(ProxyStatusSnapshot status)
+    {
+        if (status.LocalPort is not { } statusPort)
+            return;
+
+        var configuredPort = _userSettingsManager.Settings.ProxySettings.LocalHttpPort;
+        if (configuredPort != statusPort)
+            return;
+
+        if (LocalHttpPort != statusPort)
+            UpdateProxyPortNotice(LocalHttpPort, statusPort);
+
+        LocalHttpPort = statusPort;
+    }
+
+    private void UpdateProxyPortNotice(int requestedPort, int actualPort)
+    {
+        if (requestedPort == actualPort)
+        {
+            ProxyPortNoticeText = "";
+            IsProxyPortNoticeVisible = false;
+            return;
+        }
+
+        ProxyPortNoticeText =
+            $"Local proxy port was changed from {requestedPort} to {actualPort} because the requested port is busy.";
+        IsProxyPortNoticeVisible = true;
     }
 
     #endregion
