@@ -1,0 +1,92 @@
+<Window x:Class="TwitchAudioPlayer.WPF.Views.BrowserPlayerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        mc:Ignorable="d"
+        Title="Twitch Audio Player Video"
+        Width="960"
+        Height="540"
+        MinWidth="320"
+        MinHeight="180"
+        WindowStyle="None"
+        ResizeMode="CanResizeWithGrip"
+        AllowsTransparency="True"
+        ShowInTaskbar="True"
+        Background="Transparent"
+        Topmost="{Binding IsPinned}"
+        d:DataContext="{d:DesignInstance Type=viewModels:BrowserPlayerViewModel, IsDesignTimeCreatable=True}"
+        xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels">
+    <Grid Background="Transparent">
+        <Grid Visibility="{Binding HasVisibleContent, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid Visibility="{Binding IsArtworkVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Image Source="{Binding ArtworkCoverUrl}"
+                       Stretch="UniformToFill"
+                       Opacity="0.72">
+                    <Image.Effect>
+                        <BlurEffect Radius="32" />
+                    </Image.Effect>
+                </Image>
+                <Rectangle Fill="#55000000" />
+                <Grid Width="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
+                      Height="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Margin="42">
+                    <Border Background="#22000000">
+                        <Image Source="{Binding ArtworkCoverUrl}" Stretch="UniformToFill" />
+                    </Border>
+                </Grid>
+                <Border VerticalAlignment="Bottom"
+                        Background="#B0000000"
+                        Padding="18,12">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ArtworkTitle}"
+                                   Foreground="White"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding ArtworkArtist}"
+                                   Foreground="#DDFFFFFF"
+                                   FontSize="15"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <wv2:WebView2 x:Name="YoutubeWebView"
+                          Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Grid>
+
+        <Grid Height="36"
+              VerticalAlignment="Top"
+              Background="#01000000"
+              MouseLeftButtonDown="DragStrip_OnMouseLeftButtonDown">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity" Value="0" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Opacity" Value="1" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Button Command="{Binding TogglePinCommand}"
+                    Width="32"
+                    Height="32"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,2,6,0"
+                    ToolTip="Keep window above other apps"
+                    Style="{StaticResource MaterialDesignIconButton}">
+                <materialDesign:PackIcon Kind="{Binding PinIcon}"
+                                         Foreground="White"
+                                         Width="20"
+                                         Height="20" />
+            </Button>
+        </Grid>
+    </Grid>
+</Window>

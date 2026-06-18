@@ -28,6 +28,7 @@ public class UserSettings
     //yt
     public double MaxMinutesLength { get; set; } = 6;
     public YouTubePlaybackMode YouTubePlaybackMode { get; set; } = YouTubePlaybackMode.Browser;
+    public bool BrowserPlayerTopmost { get; set; } = true;
     //twitch
     public string? TwitchRewardTitle { get; set; } = "Заказ музыки";
     public string? TwitchRewardPrompt { get; set; } = "Укажите ссылку на YouTube видео. Максимальная длительность - 6 минут.";

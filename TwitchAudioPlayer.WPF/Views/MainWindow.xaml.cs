@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Input;
 using MaterialDesignThemes.Wpf;
+using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.ViewModels;
 
 namespace TwitchAudioPlayer.WPF.Views;
@@ -10,11 +11,14 @@ namespace TwitchAudioPlayer.WPF.Views;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private readonly BrowserPlayerWindowService _browserPlayerWindowService;
+
     public MainWindow(MainWindowViewModel mainWindowViewModel, VkAudioView audioPanel, AudioPlayerView audioPlayerView,
-        YtAudioView youTubeAudioView)
+        YtAudioView youTubeAudioView, BrowserPlayerWindowService browserPlayerWindowService)
     {
         InitializeComponent();
         DataContext = mainWindowViewModel;
+        _browserPlayerWindowService = browserPlayerWindowService;
         StateChanged += OnWindowStateChanged;
 
         VkAudioView.Content = audioPanel;
@@ -25,6 +29,7 @@ public partial class MainWindow : Window
     // долбоебская хуйня
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        _browserPlayerWindowService.Show();
     }
 
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
@@ -52,5 +57,7 @@ public partial class MainWindow : Window
         MaximizeIcon.Kind = WindowState == WindowState.Maximized
             ? PackIconKind.WindowRestore
             : PackIconKind.WindowMaximize;
+
+        _browserPlayerWindowService.SyncWithMainWindowState(WindowState);
     }
 }

@@ -20,6 +20,7 @@ public partial class YtAudioViewModel : ObservableObject
     private readonly MusicOrderService _musicOrderService;
     private readonly IWindowService _windowService;
     private readonly IProxyService _proxyService;
+    private readonly BrowserPlayerService _browserPlayer;
     private readonly PlayerService _player;
 
     private double _maxYtMinutes;
@@ -34,12 +35,13 @@ public partial class YtAudioViewModel : ObservableObject
     private bool _isBrowserPlaying;
 
     public YtAudioViewModel(IWindowService windowService, IUserSettingsManager userSettingsManager,
-        MusicOrderService musicOrderService, IProxyService proxyService)
+        MusicOrderService musicOrderService, IProxyService proxyService, BrowserPlayerService browserPlayer)
     {
         _windowService = windowService;
         _userSettingsManager = userSettingsManager;
         _musicOrderService = musicOrderService;
         _proxyService = proxyService;
+        _browserPlayer = browserPlayer;
 
         var dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -65,6 +67,19 @@ public partial class YtAudioViewModel : ObservableObject
         });
         UpdateProxyStatus(_proxyService.CurrentStatus);
         _musicOrderService.OrdersAdded += (_, e) => dispatcher.Invoke(async () => await OnOrdersAdded(e));
+        _browserPlayer.PlaybackEnded += (_, _) => dispatcher.Invoke(async () => await BrowserPlaybackEndedAsync());
+        _browserPlayer.PlaybackFailed += (_, message) =>
+            dispatcher.Invoke(async () => await BrowserPlaybackFailedAsync(message));
+        _browserPlayer.SkipRequested += (_, _) => dispatcher.Invoke(async () => await CompleteBrowserTrackAndAdvanceAsync());
+        _browserPlayer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(BrowserPlayerService.IsPlaying))
+                dispatcher.Invoke(SyncBrowserPlayState);
+            else if (e.PropertyName == nameof(BrowserPlayerService.Position))
+                dispatcher.Invoke(async () => await BrowserPositionChangedAsync(_browserPlayer.Position, _browserPlayer.Duration));
+            else if (e.PropertyName == nameof(BrowserPlayerService.StatusText))
+                dispatcher.Invoke(() => BrowserPlayerStatusText = _browserPlayer.StatusText);
+        };
 
         _player = StaticService.Container.GetRequiredService<PlayerService>();
         _player.TrackChangedEvent += (_, _) =>
@@ -94,7 +109,6 @@ public partial class YtAudioViewModel : ObservableObject
     [ObservableProperty] private string _proxyStatusText = "Proxy disabled";
 
     [ObservableProperty] private bool _isBrowserPlaybackMode;
-    [ObservableProperty] private GridLength _browserPlayerGridLength;
     [ObservableProperty] private string _browserPlayerStatusText = "YouTube browser player is starting...";
 
     [ObservableProperty] private bool _autoPlayEnabled = true;
@@ -106,11 +120,6 @@ public partial class YtAudioViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<YtAudioTrackViewModel> _queuedTracksViewModels;
     [ObservableProperty] private YtAudioTrackViewModel? _playedSelectedTrack;
     [ObservableProperty] private YtAudioTrackViewModel? _queuedSelectedTrack;
-
-    public event EventHandler<YouTubeBrowserPlaybackRequest>? BrowserPlaybackRequested;
-    public event EventHandler? BrowserPlayRequested;
-    public event EventHandler? BrowserPauseRequested;
-    public event EventHandler? BrowserStopRequested;
 
     private async Task PlayerOnPositionTrackChangedEvent(TimeSpan e)
     {
@@ -314,7 +323,7 @@ public partial class YtAudioViewModel : ObservableObject
             if (IsBrowserPlaybackMode && _browserCurrentViewModel?.AudioTrackViewModel == viewModel)
             {
                 _isBrowserPlaying = false;
-                BrowserPauseRequested?.Invoke(this, EventArgs.Empty);
+                _browserPlayer.Pause();
             }
             else
             {
@@ -362,7 +371,7 @@ public partial class YtAudioViewModel : ObservableObject
             _isBrowserPlaying = true;
             viewModel.IsPlaying = true;
             BrowserPlayerStatusText = $"Playing in browser: {viewModel.Title}";
-            BrowserPlayRequested?.Invoke(this, EventArgs.Empty);
+            _browserPlayer.Play();
             return;
         }
 
@@ -393,15 +402,15 @@ public partial class YtAudioViewModel : ObservableObject
         QueuedSelectedTrack = _browserCurrentViewModel;
         BrowserPlayerStatusText = $"Playing in browser: {viewModel.Title}";
 
-        BrowserPlaybackRequested?.Invoke(this, new YouTubeBrowserPlaybackRequest(videoId, TimeSpan.Zero, order.PlaylistTrack));
+        _browserPlayer.SetVolume(_player.Volume);
+        _browserPlayer.SetMuted(_player.IsMuted);
+        _browserPlayer.Load(new YouTubeBrowserPlaybackRequest(videoId, TimeSpan.Zero, order.PlaylistTrack));
         await Task.CompletedTask;
     }
 
     public void BrowserPlayerReady()
     {
-        BrowserPlayerStatusText = IsBrowserPlaybackMode
-            ? "YouTube browser player is ready."
-            : "YouTube browser playback is disabled.";
+        BrowserPlayerStatusText = _browserPlayer.StatusText;
     }
 
     public async Task BrowserPlaybackEndedAsync()
@@ -444,7 +453,7 @@ public partial class YtAudioViewModel : ObservableObject
             return;
         }
 
-        BrowserStopRequested?.Invoke(this, EventArgs.Empty);
+        _browserPlayer.Stop();
         BrowserPlayerStatusText = "YouTube queue finished.";
 
         if (_interceptedState != null)
@@ -465,17 +474,25 @@ public partial class YtAudioViewModel : ObservableObject
         _isBrowserPlaying = false;
     }
 
+    private void SyncBrowserPlayState()
+    {
+        if (!IsBrowserPlaybackMode || _browserCurrentViewModel?.AudioTrackViewModel == null)
+            return;
+
+        _isBrowserPlaying = _browserPlayer.IsPlaying;
+        _browserCurrentViewModel.AudioTrackViewModel.IsPlaying = _browserPlayer.IsPlaying;
+    }
+
     private void SetSettings(Dispatcher? dispatcher = null)
     {
         _maxYtMinutes = _userSettingsManager.Settings.MaxMinutesLength;
         var wasBrowserPlaybackMode = IsBrowserPlaybackMode;
         IsBrowserPlaybackMode = _userSettingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
-        BrowserPlayerGridLength = IsBrowserPlaybackMode ? new GridLength(260) : new GridLength(0);
 
         if (wasBrowserPlaybackMode && !IsBrowserPlaybackMode)
         {
             ClearBrowserCurrentTrack();
-            BrowserStopRequested?.Invoke(this, EventArgs.Empty);
+            _browserPlayer.Stop();
             BrowserPlayerStatusText = "YouTube browser playback is disabled.";
         }
 

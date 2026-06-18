@@ -5,11 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>YouTube Player</title>
     <style>
-        html, body, #player {
+        html, body {
             width: 100%;
             height: 100%;
             margin: 0;
             overflow: hidden;
+            background: transparent;
+        }
+
+        #player {
+            width: 100%;
+            height: 100%;
             background: #000;
         }
     </style>
@@ -20,6 +26,8 @@
     let player;
     let isReady = false;
     let pendingVideo = null;
+    let lastVolume = null;
+    let lastMuted = null;
 
     function post(type, payload) {
         if (!window.chrome || !window.chrome.webview) {
@@ -60,6 +68,7 @@
                 onReady: () => {
                     isReady = true;
                     post("ready");
+                    postVolumeIfChanged(true);
                     flushPendingVideo();
                 },
                 onStateChange: event => {
@@ -86,12 +95,49 @@
         player.playVideo();
     }
 
+    function postVolumeIfChanged(force) {
+        if (!isReady || !player || typeof player.getVolume !== "function") {
+            return;
+        }
+
+        const volume = (player.getVolume() || 0) / 100;
+        const muted = !!player.isMuted();
+        if (!force && Math.abs((lastVolume ?? -1) - volume) < 0.001 && lastMuted === muted) {
+            return;
+        }
+
+        lastVolume = volume;
+        lastMuted = muted;
+        post("volume", { volume, muted });
+    }
+
     window.tapPlayer = {
         load: loadVideo,
         play: () => player && player.playVideo(),
         pause: () => player && player.pauseVideo(),
         stop: () => player && player.stopVideo(),
-        seek: seconds => player && player.seekTo(seconds || 0, true)
+        seek: seconds => player && player.seekTo(seconds || 0, true),
+        setVolume: volume => {
+            if (!player || typeof player.setVolume !== "function") {
+                return;
+            }
+
+            const normalizedVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+            player.setVolume(Math.round(normalizedVolume * 100));
+            postVolumeIfChanged(true);
+        },
+        mute: () => {
+            if (player) {
+                player.mute();
+                postVolumeIfChanged(true);
+            }
+        },
+        unMute: () => {
+            if (player) {
+                player.unMute();
+                postVolumeIfChanged(true);
+            }
+        }
     };
 
     window.setInterval(() => {
@@ -106,6 +152,8 @@
                 duration: player.getDuration() || 0
             });
         }
+
+        postVolumeIfChanged(false);
     }, 500);
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>

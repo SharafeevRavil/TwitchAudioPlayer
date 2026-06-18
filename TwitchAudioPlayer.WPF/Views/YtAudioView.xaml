@@ -6,14 +6,13 @@
              xmlns:local="clr-namespace:TwitchAudioPlayer.WPF.Views"
              xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
              d:DesignHeight="720" d:DesignWidth="720"
              d:DataContext="{d:DesignInstance Type=viewModels:YtAudioViewModel, IsDesignTimeCreatable=True}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="{Binding BrowserPlayerGridLength}" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="2*" />
             <RowDefinition Height="3*" />
         </Grid.RowDefinitions>
@@ -115,22 +114,15 @@
 
         <Border Grid.Row="1"
                 Margin="5,4,5,8"
-                Background="Black"
+                Background="#22000000"
                 BorderBrush="#333333"
                 BorderThickness="1"
+                Padding="8,5"
                 Visibility="{Binding IsBrowserPlaybackMode, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Grid>
-                <wv2:WebView2 x:Name="YoutubeWebView" />
-                <Border VerticalAlignment="Bottom"
-                        Background="#99000000"
-                        Padding="8,5"
-                        IsHitTestVisible="False">
-                    <TextBlock Text="{Binding BrowserPlayerStatusText}"
-                               Foreground="White"
-                               FontSize="12"
-                               TextTrimming="CharacterEllipsis" />
-                </Border>
-            </Grid>
+            <TextBlock Text="{Binding BrowserPlayerStatusText}"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       FontSize="12"
+                       TextTrimming="CharacterEllipsis" />
         </Border>
 
         <Grid Grid.Row="2">

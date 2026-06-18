@@ -82,6 +82,8 @@ public partial class App : Application
             xrayProcessManager, proxyHealthChecker);
 
         services.AddTransient<IWindowService, WindowService>();
+        services.AddSingleton<BrowserPlayerService>();
+        services.AddSingleton<BrowserPlayerWindowService>();
         services.AddTransient<MusicOrderRepository>();
         services.AddSingleton(proxyNodeParser);
         services.AddSingleton(subscriptionLoader);
@@ -105,6 +107,7 @@ public partial class App : Application
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<VkAudioViewModel>();
         services.AddTransient<AudioPlayerViewModel>();
+        services.AddSingleton<BrowserPlayerViewModel>();
         services.AddTransient<VkSettingsViewModel>();
         services.AddTransient<YtAudioViewModel>();
         services.AddTransient<YtSettingsViewModel>();
@@ -115,6 +118,7 @@ public partial class App : Application
         services.AddTransient<VkAudioView>();
         services.AddTransient<AudioTrackControl>();
         services.AddTransient<AudioPlayerView>();
+        services.AddSingleton<BrowserPlayerWindow>();
         services.AddSingleton<StartingWindow>();
         services.AddTransient<VkSettingsView>();
         services.AddTransient<YtAudioView>();
