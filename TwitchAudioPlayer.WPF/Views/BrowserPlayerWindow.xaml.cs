@@ -27,6 +27,7 @@ public partial class BrowserPlayerWindow : Window
         .ytp-pause-overlay,
         .ytp-bezel,
         .ytp-bezel-text-wrapper,
+        .ytp-large-play-button,
         .ytp-watermark,
         .ytp-youtube-button,
         .ytp-share-button,
@@ -40,6 +41,43 @@ public partial class BrowserPlayerWindow : Window
         .ytp-autonav-endscreen-upnext,
         .ytp-endscreen-content,
         .ytp-related-on-error-overlay,
+        #player-controls,
+        .ytPlayerControlsContainerHost,
+        .ytPlayerControlsContainerRendered,
+        .ytPlayerControlsContainer,
+        .ytmPlayerControlsContainer,
+        ytm-custom-control,
+        .ytm-custom-control,
+        ytm-player-controls,
+        .ytm-player-controls,
+        ytm-player-controls-overlay,
+        .ytm-player-controls-overlay,
+        ytm-mobile-topbar-renderer,
+        ytm-player-endscreen,
+        #bottom-sheet-wrapper,
+        ytm-bottom-sheet-renderer,
+        ytm-menu-popup-renderer,
+        ytm-endscreen,
+        ytm-watch-next-secondary-results-renderer,
+        ytm-related-chip-cloud-renderer,
+        ytm-horizontal-card-list-renderer,
+        ytm-reel-shelf-renderer,
+        ytm-compact-video-renderer,
+        ytm-video-with-context-renderer,
+        ytm-playlist-panel-renderer,
+        ytm-autonav-endscreen,
+        ytm-up-next,
+        ytm-structured-description-content-renderer,
+        .player-controls,
+        .player-controls-content,
+        .player-controls-background,
+        .player-controls-bottom,
+        .player-controls-top,
+        .player-overlay,
+        .player-endscreen,
+        .endscreen,
+        .related-videos,
+        .watch-on-youtube,
         .videowall-endscreen,
         .html5-endscreen {
             display: none !important;
@@ -412,6 +450,7 @@ public partial class BrowserPlayerWindow : Window
                     ".ytp-pause-overlay",
                     ".ytp-bezel",
                     ".ytp-bezel-text-wrapper",
+                    ".ytp-large-play-button",
                     ".ytp-watermark",
                     ".ytp-youtube-button",
                     ".ytp-share-button",
@@ -425,6 +464,43 @@ public partial class BrowserPlayerWindow : Window
                     ".ytp-autonav-endscreen-upnext",
                     ".ytp-endscreen-content",
                     ".ytp-related-on-error-overlay",
+                    "#player-controls",
+                    ".ytPlayerControlsContainerHost",
+                    ".ytPlayerControlsContainerRendered",
+                    ".ytPlayerControlsContainer",
+                    ".ytmPlayerControlsContainer",
+                    "ytm-custom-control",
+                    ".ytm-custom-control",
+                    "ytm-player-controls",
+                    ".ytm-player-controls",
+                    "ytm-player-controls-overlay",
+                    ".ytm-player-controls-overlay",
+                    "ytm-mobile-topbar-renderer",
+                    "ytm-player-endscreen",
+                    "#bottom-sheet-wrapper",
+                    "ytm-bottom-sheet-renderer",
+                    "ytm-menu-popup-renderer",
+                    "ytm-endscreen",
+                    "ytm-watch-next-secondary-results-renderer",
+                    "ytm-related-chip-cloud-renderer",
+                    "ytm-horizontal-card-list-renderer",
+                    "ytm-reel-shelf-renderer",
+                    "ytm-compact-video-renderer",
+                    "ytm-video-with-context-renderer",
+                    "ytm-playlist-panel-renderer",
+                    "ytm-autonav-endscreen",
+                    "ytm-up-next",
+                    "ytm-structured-description-content-renderer",
+                    ".player-controls",
+                    ".player-controls-content",
+                    ".player-controls-background",
+                    ".player-controls-bottom",
+                    ".player-controls-top",
+                    ".player-overlay",
+                    ".player-endscreen",
+                    ".endscreen",
+                    ".related-videos",
+                    ".watch-on-youtube",
                     ".videowall-endscreen",
                     ".html5-endscreen"
                 ];
@@ -447,17 +523,34 @@ public partial class BrowserPlayerWindow : Window
                             element.style.setProperty("opacity", "0", "important");
                             element.style.setProperty("visibility", "hidden", "important");
                             element.style.setProperty("pointer-events", "none", "important");
+                            const tagName = element.tagName.toLowerCase();
+                            if (element.id === "player-controls" ||
+                                element.id === "bottom-sheet-wrapper" ||
+                                tagName.startsWith("ytm-") ||
+                                element.classList.contains("ytPlayerControlsContainerHost") ||
+                                element.classList.contains("ytPlayerControlsContainerRendered")) {
+                                element.remove();
+                            }
                         }
                     }
                 };
 
-                apply();
-                window.setInterval(apply, 250);
-                new MutationObserver(apply).observe(document.documentElement, {
-                    childList: true,
-                    subtree: true,
-                    attributes: true
-                });
+                const start = () => {
+                    if (!document.documentElement) {
+                        window.setTimeout(start, 25);
+                        return;
+                    }
+
+                    apply();
+                    window.setInterval(apply, 100);
+                    new MutationObserver(apply).observe(document.documentElement, {
+                        childList: true,
+                        subtree: true,
+                        attributes: true
+                    });
+                };
+
+                start();
             })();
             """;
     }

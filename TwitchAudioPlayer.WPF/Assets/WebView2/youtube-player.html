@@ -106,9 +106,6 @@
                     post("state", { state: event.data });
                     if (event.data === YT.PlayerState.ENDED) {
                         player.stopVideo();
-                        if (typeof player.clearVideo === "function") {
-                            player.clearVideo();
-                        }
                         post("ended");
                     }
                 },
@@ -157,9 +154,6 @@
             }
 
             player.stopVideo();
-            if (typeof player.clearVideo === "function") {
-                player.clearVideo();
-            }
         },
         seek: seconds => player && player.seekTo(seconds || 0, true),
         setVolume: volume => {
