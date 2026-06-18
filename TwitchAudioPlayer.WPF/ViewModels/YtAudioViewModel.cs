@@ -33,6 +33,7 @@ public partial class YtAudioViewModel : ObservableObject
     private YtAudioTrackViewModel? _browserCurrentViewModel;
     private PlayerState? _interceptedState;
     private bool _isBrowserPlaying;
+    private int _browserPlaybackRequestId;
 
     public YtAudioViewModel(IWindowService windowService, IUserSettingsManager userSettingsManager,
         MusicOrderService musicOrderService, IProxyService proxyService, BrowserPlayerService browserPlayer)
@@ -404,7 +405,11 @@ public partial class YtAudioViewModel : ObservableObject
 
         _browserPlayer.SetVolume(_player.Volume);
         _browserPlayer.SetMuted(_player.IsMuted);
-        _browserPlayer.Load(new YouTubeBrowserPlaybackRequest(videoId, TimeSpan.Zero, order.PlaylistTrack));
+        _browserPlayer.Load(new YouTubeBrowserPlaybackRequest(
+            videoId,
+            TimeSpan.Zero,
+            order.PlaylistTrack,
+            ++_browserPlaybackRequestId));
         await Task.CompletedTask;
     }
 
@@ -421,7 +426,15 @@ public partial class YtAudioViewModel : ObservableObject
     public async Task BrowserPlaybackFailedAsync(string message)
     {
         BrowserPlayerStatusText = message;
-        await CompleteBrowserTrackAndAdvanceAsync();
+        _browserPlayer.Stop();
+        ClearBrowserCurrentTrack();
+
+        if (_interceptedState != null)
+        {
+            var state = _interceptedState;
+            _interceptedState = null;
+            await _player.RestoreFromStateAsync(state);
+        }
     }
 
     public async Task BrowserPositionChangedAsync(TimeSpan position, TimeSpan duration)

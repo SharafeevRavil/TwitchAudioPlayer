@@ -77,7 +77,7 @@
                     <materialDesign:PackIcon Kind="{Binding VolumeIcon}" />
                 </Button>
                 <Slider Visibility="{Binding IsMuted, Converter={StaticResource InverseBoolToVisibilityConverter}}"
-                        VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}"
+                        VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding VolumeSliderPosition, Mode=TwoWay}"
                         Width="250" Margin="5 0 10 0" />
                 <!--Когда замьючено-->
                 <Button Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibilityConverter}}"

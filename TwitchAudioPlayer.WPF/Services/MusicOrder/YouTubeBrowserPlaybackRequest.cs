@@ -5,4 +5,5 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder;
 public sealed record YouTubeBrowserPlaybackRequest(
     string VideoId,
     TimeSpan StartPosition,
-    PlaylistTrack Track);
+    PlaylistTrack Track,
+    int RequestId);

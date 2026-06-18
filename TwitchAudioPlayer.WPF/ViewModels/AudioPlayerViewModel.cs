@@ -9,6 +9,7 @@ using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
 using Serilog;
+using TwitchAudioPlayer.WPF.Helpers;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
 
 namespace TwitchAudioPlayer.WPF.ViewModels;
@@ -33,6 +34,7 @@ public partial class AudioPlayerViewModel : ObservableObject
     [ObservableProperty] private bool _shuffleEnabled;
 
     private double _volume;
+    private double _volumeSliderPosition = 1;
 
     [ObservableProperty] private string _volumeIcon = "VolumeHigh";
 
@@ -111,7 +113,7 @@ public partial class AudioPlayerViewModel : ObservableObject
     {
         try
         {
-            Volume = Math.Clamp(Volume + volume, 0, 1);
+            VolumeSliderPosition = Math.Clamp(VolumeSliderPosition + volume, 0, 1);
         }
         catch (Exception e)
         {
@@ -147,20 +149,35 @@ public partial class AudioPlayerViewModel : ObservableObject
         get => _volume;
         set
         {
+            value = Math.Clamp(value, 0, 1);
             SetProperty(ref _volume, value);
+            SetProperty(ref _volumeSliderPosition, VolumeCurve.VolumeToSlider(value), nameof(VolumeSliderPosition));
             if (_browserPlayer.IsYouTubeActive)
                 _browserPlayer.SetVolume(Volume);
             else
                 _player.Volume = Volume;
         }
     }
+
+    public double VolumeSliderPosition
+    {
+        get => _volumeSliderPosition;
+        set
+        {
+            value = Math.Clamp(value, 0, 1);
+            if (!SetProperty(ref _volumeSliderPosition, value))
+                return;
+
+            Volume = VolumeCurve.SliderToVolume(value);
+        }
+    }
     // когда замьючено
     public double Volume2
     {
-        get => 0;
+        get => VolumeSliderPosition;
         set
         {
-            Volume = value;
+            VolumeSliderPosition = value;
             if (_browserPlayer.IsYouTubeActive)
                 _browserPlayer.SetMuted(false);
             else
@@ -184,7 +201,9 @@ public partial class AudioPlayerViewModel : ObservableObject
             _ => "VolumeLow"
         };
 
+        volume = Math.Clamp(volume, 0, 1);
         SetProperty(ref _volume, volume);
+        SetProperty(ref _volumeSliderPosition, VolumeCurve.VolumeToSlider(volume), nameof(VolumeSliderPosition));
     }
 
     private void OnAudioPlayerOnPlaybackPositionChanged(TimeSpan args)

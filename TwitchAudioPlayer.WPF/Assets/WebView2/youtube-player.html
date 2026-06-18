@@ -33,7 +33,7 @@
             inset: 0;
             z-index: 10;
             background: transparent;
-            cursor: none;
+            cursor: default;
         }
     </style>
 </head>
@@ -44,6 +44,9 @@
     let player;
     let isReady = false;
     let pendingVideo = null;
+    let currentRequestId = 0;
+    let pendingVolume = null;
+    let pendingMuted = null;
     let lastVolume = null;
     let lastMuted = null;
 
@@ -54,6 +57,7 @@
 
         window.chrome.webview.postMessage({
             type,
+            requestId: currentRequestId,
             ...(payload || {})
         });
     }
@@ -65,7 +69,23 @@
 
         const video = pendingVideo;
         pendingVideo = null;
-        loadVideo(video.videoId, video.startSeconds);
+        loadVideo(video.videoId, video.startSeconds, video.requestId);
+    }
+
+    function applyPendingAudioState() {
+        if (!isReady || !player) {
+            return;
+        }
+
+        if (pendingVolume !== null) {
+            applyVolume(pendingVolume);
+            pendingVolume = null;
+        }
+
+        if (pendingMuted !== null) {
+            applyMuted(pendingMuted);
+            pendingMuted = null;
+        }
     }
 
     function clearYouTubeChrome() {
@@ -99,8 +119,9 @@
                     isReady = true;
                     clearYouTubeChrome();
                     post("ready");
-                    postVolumeIfChanged(true);
+                    applyPendingAudioState();
                     flushPendingVideo();
+                    postVolumeIfChanged(true);
                 },
                 onStateChange: event => {
                     post("state", { state: event.data });
@@ -114,9 +135,12 @@
         });
     }
 
-    function loadVideo(videoId, startSeconds) {
+    function loadVideo(videoId, startSeconds, requestId) {
+        const normalizedRequestId = Number(requestId) || 0;
+        currentRequestId = normalizedRequestId;
+
         if (!isReady || !player) {
-            pendingVideo = { videoId, startSeconds: startSeconds || 0 };
+            pendingVideo = { videoId, startSeconds: startSeconds || 0, requestId: normalizedRequestId };
             return;
         }
 
@@ -125,7 +149,27 @@
             startSeconds: startSeconds || 0
         });
         clearYouTubeChrome();
+        applyPendingAudioState();
         player.playVideo();
+    }
+
+    function normalizeVolume(volume) {
+        return Math.max(0, Math.min(1, Number(volume) || 0));
+    }
+
+    function applyVolume(volume) {
+        player.setVolume(Math.round(normalizeVolume(volume) * 100));
+        postVolumeIfChanged(true);
+    }
+
+    function applyMuted(isMuted) {
+        if (isMuted) {
+            player.mute();
+        } else {
+            player.unMute();
+        }
+
+        postVolumeIfChanged(true);
     }
 
     function postVolumeIfChanged(force) {
@@ -149,6 +193,8 @@
         play: () => player && player.playVideo(),
         pause: () => player && player.pauseVideo(),
         stop: () => {
+            pendingVideo = null;
+            currentRequestId = 0;
             if (!player) {
                 return;
             }
@@ -158,24 +204,27 @@
         seek: seconds => player && player.seekTo(seconds || 0, true),
         setVolume: volume => {
             if (!player || typeof player.setVolume !== "function") {
+                pendingVolume = normalizeVolume(volume);
                 return;
             }
 
-            const normalizedVolume = Math.max(0, Math.min(1, Number(volume) || 0));
-            player.setVolume(Math.round(normalizedVolume * 100));
-            postVolumeIfChanged(true);
+            applyVolume(volume);
         },
         mute: () => {
-            if (player) {
-                player.mute();
-                postVolumeIfChanged(true);
+            if (!player) {
+                pendingMuted = true;
+                return;
             }
+
+            applyMuted(true);
         },
         unMute: () => {
-            if (player) {
-                player.unMute();
-                postVolumeIfChanged(true);
+            if (!player) {
+                pendingMuted = false;
+                return;
             }
+
+            applyMuted(false);
         }
     };
 

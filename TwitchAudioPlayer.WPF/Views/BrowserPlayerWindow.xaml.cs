@@ -86,10 +86,6 @@ public partial class BrowserPlayerWindow : Window
             pointer-events: none !important;
         }
 
-        .html5-video-player,
-        .html5-video-player * {
-            cursor: none !important;
-        }
         """;
 
     private const int WmSizing = 0x0214;
@@ -110,6 +106,7 @@ public partial class BrowserPlayerWindow : Window
     private bool _webViewInitialized;
     private bool _isResizingToAspect;
     private bool _wasMinimizedWithMainWindow;
+    private int _activeRequestId;
 
     public BrowserPlayerWindow(BrowserPlayerViewModel viewModel, BrowserPlayerService browserPlayer)
     {
@@ -168,9 +165,18 @@ public partial class BrowserPlayerWindow : Window
 
     private async void BrowserPlayerOnLoadRequested(object? sender, YouTubeBrowserPlaybackRequest e)
     {
-        await ExecutePlayerCommandAsync($"load({JsonSerializer.Serialize(e.VideoId)}, {FormatSeconds(e.StartPosition)})");
-        await ExecutePlayerCommandAsync($"setVolume({FormatNumber(_browserPlayer.Volume)})", reportFailure: false);
-        await ExecutePlayerCommandAsync(_browserPlayer.IsMuted ? "mute()" : "unMute()", reportFailure: false);
+        _activeRequestId = e.RequestId;
+        await ExecutePlayerCommandAsync(
+            $"load({JsonSerializer.Serialize(e.VideoId)}, {FormatSeconds(e.StartPosition)}, {e.RequestId})",
+            requestId: e.RequestId);
+        await ExecutePlayerCommandAsync(
+            $"setVolume({FormatNumber(_browserPlayer.Volume)})",
+            reportFailure: false,
+            requestId: e.RequestId);
+        await ExecutePlayerCommandAsync(
+            _browserPlayer.IsMuted ? "mute()" : "unMute()",
+            reportFailure: false,
+            requestId: e.RequestId);
     }
 
     private async void BrowserPlayerOnPlayRequested(object? sender, EventArgs e)
@@ -185,6 +191,7 @@ public partial class BrowserPlayerWindow : Window
 
     private async void BrowserPlayerOnStopRequested(object? sender, EventArgs e)
     {
+        _activeRequestId = 0;
         await ExecutePlayerCommandAsync("stop()", reportFailure: false);
     }
 
@@ -203,17 +210,20 @@ public partial class BrowserPlayerWindow : Window
         await ExecutePlayerCommandAsync(e ? "mute()" : "unMute()", reportFailure: false);
     }
 
-    private async Task ExecutePlayerCommandAsync(string command, bool reportFailure = true)
+    private async Task ExecutePlayerCommandAsync(string command, bool reportFailure = true, int? requestId = null)
     {
         try
         {
             await EnsureWebViewAsync();
             await WaitForPageAsync();
+            if (requestId is not null && requestId.Value != _activeRequestId)
+                return;
+
             await YoutubeWebView.ExecuteScriptAsync($"window.tapPlayer && window.tapPlayer.{command};");
         }
         catch (Exception ex)
         {
-            if (reportFailure)
+            if (reportFailure && (requestId is null || requestId.Value == _activeRequestId))
                 _browserPlayer.ReportFailure($"YouTube browser player failed: {ex.Message}");
         }
     }
@@ -290,6 +300,9 @@ public partial class BrowserPlayerWindow : Window
             using var document = JsonDocument.Parse(e.WebMessageAsJson);
             var root = document.RootElement;
             var type = root.GetProperty("type").GetString();
+            var isReadyMessage = type == "ready";
+            if (!isReadyMessage && !IsCurrentRequestMessage(root))
+                return;
 
             switch (type)
             {
@@ -325,6 +338,17 @@ public partial class BrowserPlayerWindow : Window
         {
             _browserPlayer.ReportFailure($"YouTube browser message failed: {ex.Message}");
         }
+    }
+
+    private bool IsCurrentRequestMessage(JsonElement root)
+    {
+        if (!root.TryGetProperty("requestId", out var requestIdElement))
+            return _activeRequestId == 0;
+
+        if (!requestIdElement.TryGetInt32(out var requestId))
+            return false;
+
+        return requestId != 0 && requestId == _activeRequestId;
     }
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)

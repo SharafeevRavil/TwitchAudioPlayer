@@ -235,7 +235,7 @@
                         </Button>
                         <Slider Minimum="0"
                                 Maximum="1"
-                                Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Value="{Binding VolumeSliderPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Width="180"
                                 VerticalAlignment="Center" />
                     </StackPanel>

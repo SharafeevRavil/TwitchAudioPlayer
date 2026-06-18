@@ -9,6 +9,7 @@ using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
+using TwitchAudioPlayer.WPF.Helpers;
 
 namespace TwitchAudioPlayer.WPF.ViewModels;
 
@@ -21,6 +22,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
     private CancellationTokenSource? _hideArtworkDelayCts;
     private double _currentPosition;
     private double _volume = 1;
+    private double _volumeSliderPosition = 1;
 
     [ObservableProperty] private bool _isPinned;
     [ObservableProperty] private string _pinIcon = "Pin";
@@ -96,6 +98,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
             if (!SetProperty(ref _volume, value))
                 return;
 
+            SetProperty(ref _volumeSliderPosition, VolumeCurve.VolumeToSlider(value), nameof(VolumeSliderPosition));
             UpdateVolumeIcon();
             if (_isUpdatingFromPlayer)
                 return;
@@ -104,6 +107,19 @@ public partial class BrowserPlayerViewModel : ObservableObject
                 _browserPlayer.SetVolume(value);
             else
                 _player.Volume = value;
+        }
+    }
+
+    public double VolumeSliderPosition
+    {
+        get => _volumeSliderPosition;
+        set
+        {
+            value = Math.Clamp(value, 0, 1);
+            if (!SetProperty(ref _volumeSliderPosition, value))
+                return;
+
+            Volume = VolumeCurve.SliderToVolume(value);
         }
     }
 
