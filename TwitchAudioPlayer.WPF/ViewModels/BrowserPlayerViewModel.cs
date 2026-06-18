@@ -18,6 +18,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
     private readonly IUserSettingsManager _userSettingsManager;
     private readonly PlayerService _player;
     private bool _isUpdatingFromPlayer;
+    private CancellationTokenSource? _hideArtworkDelayCts;
     private double _currentPosition;
     private double _volume = 1;
 
@@ -27,7 +28,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
     [ObservableProperty] private string _fullScreenIcon = "Fullscreen";
     [ObservableProperty] private bool _isYouTubeVisible;
     [ObservableProperty] private bool _isArtworkVisible;
-    [ObservableProperty] private bool _hasVisibleContent;
+    [ObservableProperty] private bool _hasVideoContent;
     [ObservableProperty] private string _headerText = "";
     [ObservableProperty] private string _currentCoverUrl = "pack://application:,,,/Assets/default.png";
     [ObservableProperty] private string _currentTitle = "";
@@ -122,12 +123,11 @@ public partial class BrowserPlayerViewModel : ObservableObject
     private void UpdateState()
     {
         IsYouTubeVisible = _browserPlayer.IsYouTubeActive;
-        IsArtworkVisible = !IsYouTubeVisible && _player is { CurrentTrack: not null, IsPlaying: true };
-        HasVisibleContent = IsYouTubeVisible || IsArtworkVisible;
 
         var track = _browserPlayer.IsYouTubeActive ? _browserPlayer.CurrentTrack : _player.CurrentTrack;
         if (track is not null)
         {
+            CancelDelayedArtworkHide();
             var coverUrl = track.AlbumId?.BigCoverUrl
                            ?? track.AlbumId?.CoverUrl
                            ?? "pack://application:,,,/Assets/default.png";
@@ -138,17 +138,14 @@ public partial class BrowserPlayerViewModel : ObservableObject
             ArtworkCoverUrl = coverUrl;
             ArtworkTitle = track.Title;
             ArtworkArtist = track.GetArtistsString();
+            IsArtworkVisible = !IsYouTubeVisible;
         }
         else
         {
-            CurrentCoverUrl = "pack://application:,,,/Assets/default.png";
-            CurrentTitle = "";
-            CurrentArtist = "";
-            HeaderText = "";
-            ArtworkCoverUrl = "pack://application:,,,/Assets/default.png";
-            ArtworkTitle = "";
-            ArtworkArtist = "";
+            ScheduleDelayedArtworkHide();
         }
+
+        HasVideoContent = IsYouTubeVisible || IsArtworkVisible;
 
         var position = _browserPlayer.IsYouTubeActive ? _browserPlayer.Position : _player.Position;
         var duration = _browserPlayer.IsYouTubeActive ? _browserPlayer.Duration : _player.Duration;
@@ -172,6 +169,61 @@ public partial class BrowserPlayerViewModel : ObservableObject
         {
             _isUpdatingFromPlayer = false;
         }
+    }
+
+    private void ScheduleDelayedArtworkHide()
+    {
+        if (!IsArtworkVisible)
+        {
+            ClearTrackDisplay();
+            return;
+        }
+
+        if (_hideArtworkDelayCts is not null)
+            return;
+
+        var cts = new CancellationTokenSource();
+        _hideArtworkDelayCts = cts;
+        _ = HideArtworkAfterDelayAsync(cts);
+    }
+
+    private async Task HideArtworkAfterDelayAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), cts.Token);
+            IsArtworkVisible = false;
+            HasVideoContent = IsYouTubeVisible;
+            ClearTrackDisplay();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_hideArtworkDelayCts, cts))
+                _hideArtworkDelayCts = null;
+
+            cts.Dispose();
+        }
+    }
+
+    private void CancelDelayedArtworkHide()
+    {
+        var cts = _hideArtworkDelayCts;
+        _hideArtworkDelayCts = null;
+        cts?.Cancel();
+    }
+
+    private void ClearTrackDisplay()
+    {
+        CurrentCoverUrl = "pack://application:,,,/Assets/default.png";
+        CurrentTitle = "";
+        CurrentArtist = "";
+        HeaderText = "";
+        ArtworkCoverUrl = "pack://application:,,,/Assets/default.png";
+        ArtworkTitle = "";
+        ArtworkArtist = "";
     }
 
     private void UpdatePinIcon()

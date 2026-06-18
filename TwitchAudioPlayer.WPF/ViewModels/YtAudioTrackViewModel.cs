@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Globalization;
 using MusicX.Shared.Player;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
@@ -16,6 +17,7 @@ public partial class YtAudioTrackViewModel : ObservableObject
     [ObservableProperty] private bool _isRetrying;
     [ObservableProperty] private string _failedTitle = "";
     [ObservableProperty] private string _failedMessage = "";
+    [ObservableProperty] private string _orderDateText = "";
 
     /// <inheritdoc/>
     public YtAudioTrackViewModel(MusicOrderWithTrack audioTrack)
@@ -24,6 +26,7 @@ public partial class YtAudioTrackViewModel : ObservableObject
         IsFailed = !audioTrack.IsAvailable;
         FailedTitle = BuildFailedTitle(audioTrack.MusicOrder.Uri);
         FailedMessage = audioTrack.ErrorMessage ?? "Could not load YouTube track.";
+        OrderDateText = audioTrack.MusicOrder.Date.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
 
         if (AudioTrack.PlaylistTrack != null)
             AudioTrackViewModel = new AudioTrackViewModel(AudioTrack.PlaylistTrack, true);

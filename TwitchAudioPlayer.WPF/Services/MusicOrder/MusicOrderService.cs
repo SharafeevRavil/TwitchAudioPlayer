@@ -11,6 +11,8 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder;
 
 public class MusicOrderService
 {
+    private static readonly TimeSpan RecentOrderHistory = TimeSpan.FromDays(7);
+
     private readonly DonationAlertsOrdersNotifier _daOrdersNotifier;
     private readonly TwitchOrdersNotifier _twitchOrdersNotifier;
 
@@ -88,11 +90,12 @@ public class MusicOrderService
 
     public void EnsureOldTracksDisabled()
     {
-        var restoredCount = _musicOrderRepository.RestoreRecentInvalidOrders(DateTimeOffset.Now.AddDays(-2));
+        var historyStart = DateTimeOffset.Now.Subtract(RecentOrderHistory);
+        var restoredCount = _musicOrderRepository.RestoreRecentInvalidOrders(historyStart);
         if (restoredCount > 0)
             Log.Information("Restored {Count} recent invalid music orders for retry.", restoredCount);
 
-        _musicOrderRepository.MarkOrdersInactiveBefore(DateTimeOffset.Now.AddDays(-3), Played.Played);
+        _musicOrderRepository.MarkOrdersInactiveBefore(historyStart, Played.Played);
     }
     
     public async Task<List<MusicOrderWithTrack>> GetTracks()

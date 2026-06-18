@@ -20,8 +20,7 @@
         d:DataContext="{d:DesignInstance Type=viewModels:BrowserPlayerViewModel, IsDesignTimeCreatable=True}"
         xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels">
     <Grid Background="Transparent">
-        <Grid Visibility="{Binding HasVisibleContent, Converter={StaticResource BoolToVisibilityConverter}}"
-              Background="#FF101010">
+        <Grid Background="Transparent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="40" />
                 <RowDefinition Height="*" />
@@ -89,8 +88,10 @@
             </Grid>
 
             <Grid Grid.Row="1"
-                  Background="Black">
-                <Grid Visibility="{Binding IsArtworkVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                  Background="Transparent">
+                <Grid Visibility="{Binding HasVideoContent, Converter={StaticResource BoolToVisibilityConverter}}"
+                      Background="Black">
+                    <Grid Visibility="{Binding IsArtworkVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                     <Image Source="{Binding ArtworkCoverUrl}"
                            Stretch="UniformToFill"
                            Opacity="0.72">
@@ -125,11 +126,12 @@
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </Border>
-                </Grid>
+                    </Grid>
 
-                <wv2:WebView2 x:Name="YoutubeWebView"
-                              IsHitTestVisible="False"
-                              Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <wv2:WebView2 x:Name="YoutubeWebView"
+                                  IsHitTestVisible="False"
+                                  Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+                </Grid>
             </Grid>
 
             <Grid Grid.Row="2"

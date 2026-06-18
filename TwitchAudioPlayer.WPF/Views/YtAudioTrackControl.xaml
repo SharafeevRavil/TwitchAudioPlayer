@@ -14,6 +14,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <views:AudioTrackControl Grid.Column="0" DataContext="{Binding AudioTrackViewModel}"
@@ -43,7 +44,13 @@
                 <materialDesign:PackIcon Kind="Refresh" />
             </Button>
         </Grid>
-        <Image Grid.Column="1" Source="{Binding SourceImage}" Width="25" Height="25" 
+        <TextBlock Grid.Column="1"
+                   Text="{Binding OrderDateText}"
+                   FontSize="11"
+                   Foreground="{DynamicResource MaterialDesignBodyLight}"
+                   VerticalAlignment="Center"
+                   Margin="8 0" />
+        <Image Grid.Column="2" Source="{Binding SourceImage}" Width="25" Height="25" 
                Margin="0 0 10 0" Stretch="UniformToFill" VerticalAlignment="Center" />
     </Grid>
 </UserControl>
