@@ -6,17 +6,18 @@
              xmlns:local="clr-namespace:TwitchAudioPlayer.WPF.Views"
              xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
-             d:DesignHeight="500" d:DesignWidth="500"
+             d:DesignHeight="720" d:DesignWidth="720"
              d:DataContext="{d:DesignInstance Type=viewModels:YtAudioViewModel, IsDesignTimeCreatable=True}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="{Binding BrowserPlayerGridLength}" />
             <RowDefinition Height="2*" />
             <RowDefinition Height="3*" />
         </Grid.RowDefinitions>
 
-        <!-- верхняя панель -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="{Binding TrackLoadingGridLength}" />
@@ -24,7 +25,7 @@
                 <ColumnDefinition Width="{Binding TrackLoadingGridLength2}" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            
+
             <Grid Grid.Column="0" HorizontalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -42,8 +43,8 @@
                     <materialDesign:PackIcon Kind="Shuffle" />
                 </ToggleButton>
             </Grid>
-            
-            <Grid Grid.Column="1" HorizontalAlignment="Center" Margin="5 0 0 0" 
+
+            <Grid Grid.Column="1" HorizontalAlignment="Center" Margin="5 0 0 0"
                   Visibility="{Binding TrackLoadingEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -59,7 +60,7 @@
                     <materialDesign:PackIcon Kind="Shuffle" />
                 </ToggleButton>
             </Grid>
-            
+
             <Grid Grid.Column="2" VerticalAlignment="Center" Margin="5 0 0 0"
                   Visibility="{Binding TrackLoadingEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid.RowDefinitions>
@@ -105,14 +106,34 @@
                     Foreground="Crimson" Kind="CloseCircle" Grid.Row="2" Grid.Column="1" Margin="0 2"
                     ToolTip="{Binding ProxyStatusText}" />
             </Grid>
-            
-            <Button Grid.Column="3" Command="{Binding SettingsCommand}" Margin="5" 
-                    Style="{StaticResource MaterialDesignIconButton}" Width="35" Height="35" > 
+
+            <Button Grid.Column="3" Command="{Binding SettingsCommand}" Margin="5"
+                    Style="{StaticResource MaterialDesignIconButton}" Width="35" Height="35">
                 <materialDesign:PackIcon Kind="Settings" />
             </Button>
         </Grid>
-        <!-- проигранные треки -->
-        <Grid Grid.Row="1">
+
+        <Border Grid.Row="1"
+                Margin="5,4,5,8"
+                Background="Black"
+                BorderBrush="#333333"
+                BorderThickness="1"
+                Visibility="{Binding IsBrowserPlaybackMode, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <wv2:WebView2 x:Name="YoutubeWebView" />
+                <Border VerticalAlignment="Bottom"
+                        Background="#99000000"
+                        Padding="8,5"
+                        IsHitTestVisible="False">
+                    <TextBlock Text="{Binding BrowserPlayerStatusText}"
+                               Foreground="White"
+                               FontSize="12"
+                               TextTrimming="CharacterEllipsis" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -135,8 +156,8 @@
                 </ListBox.ItemTemplate>
             </ListBox>
         </Grid>
-        <!-- треки в очереди -->
-        <Grid Grid.Row="2">
+
+        <Grid Grid.Row="3">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -159,6 +180,5 @@
                 </ListBox.ItemTemplate>
             </ListBox>
         </Grid>
-
     </Grid>
 </UserControl>

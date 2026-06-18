@@ -7,9 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 using MusicX.Shared.Player;
 using TwitchAudioPlayer.WPF.MusicX.Services;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player;
+using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
-using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
 using TwitchAudioPlayer.WPF.Services.Proxy;
 
 namespace TwitchAudioPlayer.WPF.ViewModels;
@@ -21,6 +21,17 @@ public partial class YtAudioViewModel : ObservableObject
     private readonly IWindowService _windowService;
     private readonly IProxyService _proxyService;
     private readonly PlayerService _player;
+
+    private double _maxYtMinutes;
+    private readonly List<MusicOrderWithTrack> _tracks = [];
+    private YouTubeQueuePlaylist _playlist = new([]);
+    private readonly SemaphoreSlim _reloadGate = new(1, 1);
+
+    private PlaylistTrack? _currentTrack;
+    private PlaylistTrack? _browserCurrentTrack;
+    private YtAudioTrackViewModel? _browserCurrentViewModel;
+    private PlayerState? _interceptedState;
+    private bool _isBrowserPlaying;
 
     public YtAudioViewModel(IWindowService windowService, IUserSettingsManager userSettingsManager,
         MusicOrderService musicOrderService, IProxyService proxyService)
@@ -72,29 +83,8 @@ public partial class YtAudioViewModel : ObservableObject
         dispatcher.Invoke(async () => await ReloadOrdersAsync(startTrackLoading: true));
     }
 
-    // Прерывает проигрывание трека в случае, если он уже длится дольше, чем указано в настройках
-    private async Task PlayerOnPositionTrackChangedEvent(TimeSpan e)
-    {
-        if (!(e.TotalSeconds >= _maxYtMinutes * 60)) return;
-        if (!ReferenceEquals(_player.CurrentPlaylist, _playlist)) return;
-        await _player.NextTrack();
-    }
-
-    private async Task OnOrdersAdded(List<MusicOrderWithTrack> e)
-    {
-        AddTracks(e);
-        if (!AutoPlayEnabled) return;
-        // если включен автоплей - если играет другая очередь - ищем в очереди доступные треки и играем первый 
-        if (!ReferenceEquals(_player.CurrentPlaylist, _playlist))
-        {
-            var viewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
-            if (viewModel?.AudioTrackViewModel != null) await PlayTrackAsync(viewModel.AudioTrackViewModel);
-        }
-    }
-
-
     [ObservableProperty] private bool _loading = true;
-    
+
     [ObservableProperty] private bool _twitchEnabled;
     [ObservableProperty] private bool _daEnabled;
     [ObservableProperty] private bool _proxyEnabled;
@@ -102,6 +92,10 @@ public partial class YtAudioViewModel : ObservableObject
     [ObservableProperty] private string _daColor = "Green";
     [ObservableProperty] private string _proxyColor = "Crimson";
     [ObservableProperty] private string _proxyStatusText = "Proxy disabled";
+
+    [ObservableProperty] private bool _isBrowserPlaybackMode;
+    [ObservableProperty] private GridLength _browserPlayerGridLength;
+    [ObservableProperty] private string _browserPlayerStatusText = "YouTube browser player is starting...";
 
     [ObservableProperty] private bool _autoPlayEnabled = true;
     [ObservableProperty] private bool _trackLoadingEnabled = true;
@@ -113,21 +107,46 @@ public partial class YtAudioViewModel : ObservableObject
     [ObservableProperty] private YtAudioTrackViewModel? _playedSelectedTrack;
     [ObservableProperty] private YtAudioTrackViewModel? _queuedSelectedTrack;
 
-    private double _maxYtMinutes;
+    public event EventHandler<YouTubeBrowserPlaybackRequest>? BrowserPlaybackRequested;
+    public event EventHandler? BrowserPlayRequested;
+    public event EventHandler? BrowserPauseRequested;
+    public event EventHandler? BrowserStopRequested;
 
-    private readonly List<MusicOrderWithTrack> _tracks = [];
-    private YouTubeQueuePlaylist _playlist = new([]);
-    private readonly SemaphoreSlim _reloadGate = new(1, 1);
+    private async Task PlayerOnPositionTrackChangedEvent(TimeSpan e)
+    {
+        if (!(e.TotalSeconds >= _maxYtMinutes * 60)) return;
+        if (!ReferenceEquals(_player.CurrentPlaylist, _playlist)) return;
+        await _player.NextTrack();
+    }
 
-    private PlaylistTrack? _currentTrack;
-    private PlayerState? _interceptedState;
+    private async Task OnOrdersAdded(List<MusicOrderWithTrack> e)
+    {
+        AddTracks(e);
+        if (!AutoPlayEnabled) return;
+
+        if (IsBrowserPlaybackMode)
+        {
+            if (!_isBrowserPlaying)
+            {
+                var viewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
+                if (viewModel?.AudioTrackViewModel != null) await PlayTrackAsync(viewModel.AudioTrackViewModel);
+            }
+
+            return;
+        }
+
+        if (!ReferenceEquals(_player.CurrentPlaylist, _playlist))
+        {
+            var viewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
+            if (viewModel?.AudioTrackViewModel != null) await PlayTrackAsync(viewModel.AudioTrackViewModel);
+        }
+    }
 
     private async Task OnPlayerTrackChangedAsync(PlaylistTrack? track)
     {
         if (_currentTrack != null) MarkTrackAsPlayed(_currentTrack);
         _currentTrack = track;
 
-        // play 1st from queued
         var playedVm = PlayedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel?.AudioTrack == track);
         if (playedVm != null)
         {
@@ -150,12 +169,10 @@ public partial class YtAudioViewModel : ObservableObject
             if (isThisTrack) QueuedSelectedTrack = trackViewModel;
         }
 
-        //if queued count = 0 then continue play interceptedPlaylist
         if (ReferenceEquals(_player.CurrentPlaylist, _playlist) && QueuedTracksViewModels.All(x => x.AudioTrackViewModel == null))
         {
             if (_interceptedState == null)
             {
-                // тут по идее надо нахер офать
                 _ = Task.Run(async () =>
                 {
                     await Task.Delay(50);
@@ -172,19 +189,21 @@ public partial class YtAudioViewModel : ObservableObject
     {
         var order = _tracks.FirstOrDefault(x => x.PlaylistTrack == track);
         if (order == null) return;
-        // mark as played
+
         _musicOrderService.MarkPlayed(order.MusicOrder);
-        // move track vm
+
         var vm = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrack == order);
         if (vm == null) return;
+
         PlayedTracksViewModels.Add(vm);
         QueuedTracksViewModels.Remove(vm);
     }
 
     private bool CanTouchButtons() => !Loading && CheckSettings();
+
     private bool CheckSettings() => _userSettingsManager.Settings is
-        { DaWidgetToken: not null, TwitchRewardCost: not null, TwitchRewardPrompt: not null, TwitchRewardTitle: not null};
-    
+        { DaWidgetToken: not null, TwitchRewardCost: not null, TwitchRewardPrompt: not null, TwitchRewardTitle: not null };
+
     private async Task ReloadOrdersAsync(bool startTrackLoading)
     {
         if (!await _reloadGate.WaitAsync(0))
@@ -224,7 +243,6 @@ public partial class YtAudioViewModel : ObservableObject
             _reloadGate.Release();
         }
     }
-
 
     private void AddTracks(IEnumerable<MusicOrderWithTrack> tracks)
     {
@@ -293,11 +311,19 @@ public partial class YtAudioViewModel : ObservableObject
         if (!toPlay)
         {
             viewModel.IsPlaying = false;
-            _player.Pause();
+            if (IsBrowserPlaybackMode && _browserCurrentViewModel?.AudioTrackViewModel == viewModel)
+            {
+                _isBrowserPlaying = false;
+                BrowserPauseRequested?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                _player.Pause();
+            }
+
             return;
         }
 
-        // если был прожат трек в Played, то трек перемещается в несыгранные и больше ничего
         var playedVm = PlayedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel == viewModel);
         if (playedVm != null)
         {
@@ -312,6 +338,12 @@ public partial class YtAudioViewModel : ObservableObject
 
     private async Task PlayTrackAsync(AudioTrackViewModel viewModel)
     {
+        if (IsBrowserPlaybackMode)
+        {
+            await PlayBrowserTrackAsync(viewModel);
+            return;
+        }
+
         viewModel.IsPlaying = true;
         if (!ReferenceEquals(_player.CurrentPlaylist, _playlist))
             _interceptedState = PlayerState.CreateOrNull(_player);
@@ -319,9 +351,134 @@ public partial class YtAudioViewModel : ObservableObject
         await _player.PlayAsync(_playlist, viewModel.Index);
     }
 
+    private async Task PlayBrowserTrackAsync(AudioTrackViewModel viewModel)
+    {
+        var order = _tracks.FirstOrDefault(x => x.PlaylistTrack == viewModel.AudioTrack);
+        if (order?.PlaylistTrack == null)
+            return;
+
+        if (_browserCurrentTrack == order.PlaylistTrack)
+        {
+            _isBrowserPlaying = true;
+            viewModel.IsPlaying = true;
+            BrowserPlayerStatusText = $"Playing in browser: {viewModel.Title}";
+            BrowserPlayRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        var videoId = TryExtractYouTubeId(order.MusicOrder.Uri);
+        if (string.IsNullOrWhiteSpace(videoId))
+        {
+            BrowserPlayerStatusText = "Could not extract YouTube video id from order URL.";
+            return;
+        }
+
+        if (_browserCurrentTrack != null)
+            MarkTrackAsPlayed(_browserCurrentTrack);
+
+        if (!ReferenceEquals(_player.CurrentPlaylist, _playlist) && _interceptedState == null)
+            _interceptedState = PlayerState.CreateOrNull(_player);
+
+        _player.Pause();
+
+        foreach (var trackViewModel in PlayedTracksViewModels.Concat(QueuedTracksViewModels))
+            if (trackViewModel.AudioTrackViewModel != null)
+                trackViewModel.AudioTrackViewModel.IsPlaying = false;
+
+        _browserCurrentTrack = order.PlaylistTrack;
+        _browserCurrentViewModel = QueuedTracksViewModels.Concat(PlayedTracksViewModels)
+            .FirstOrDefault(x => x.AudioTrack == order);
+        _isBrowserPlaying = true;
+        viewModel.IsPlaying = true;
+        QueuedSelectedTrack = _browserCurrentViewModel;
+        BrowserPlayerStatusText = $"Playing in browser: {viewModel.Title}";
+
+        BrowserPlaybackRequested?.Invoke(this, new YouTubeBrowserPlaybackRequest(videoId, TimeSpan.Zero, order.PlaylistTrack));
+        await Task.CompletedTask;
+    }
+
+    public void BrowserPlayerReady()
+    {
+        BrowserPlayerStatusText = IsBrowserPlaybackMode
+            ? "YouTube browser player is ready."
+            : "YouTube browser playback is disabled.";
+    }
+
+    public async Task BrowserPlaybackEndedAsync()
+    {
+        await CompleteBrowserTrackAndAdvanceAsync();
+    }
+
+    public async Task BrowserPlaybackFailedAsync(string message)
+    {
+        BrowserPlayerStatusText = message;
+        await CompleteBrowserTrackAndAdvanceAsync();
+    }
+
+    public async Task BrowserPositionChangedAsync(TimeSpan position, TimeSpan duration)
+    {
+        if (!IsBrowserPlaybackMode || !_isBrowserPlaying)
+            return;
+
+        if (duration > TimeSpan.Zero)
+            BrowserPlayerStatusText = $"Playing in browser: {FormatTime(position)} / {FormatTime(duration)}";
+
+        if (position.TotalSeconds >= _maxYtMinutes * 60)
+            await CompleteBrowserTrackAndAdvanceAsync();
+    }
+
+    private async Task CompleteBrowserTrackAndAdvanceAsync()
+    {
+        if (!IsBrowserPlaybackMode)
+            return;
+
+        if (_browserCurrentTrack != null)
+            MarkTrackAsPlayed(_browserCurrentTrack);
+
+        ClearBrowserCurrentTrack();
+
+        var nextViewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
+        if (nextViewModel?.AudioTrackViewModel != null)
+        {
+            await PlayBrowserTrackAsync(nextViewModel.AudioTrackViewModel);
+            return;
+        }
+
+        BrowserStopRequested?.Invoke(this, EventArgs.Empty);
+        BrowserPlayerStatusText = "YouTube queue finished.";
+
+        if (_interceptedState != null)
+        {
+            var state = _interceptedState;
+            _interceptedState = null;
+            await _player.RestoreFromStateAsync(state);
+        }
+    }
+
+    private void ClearBrowserCurrentTrack()
+    {
+        if (_browserCurrentViewModel?.AudioTrackViewModel != null)
+            _browserCurrentViewModel.AudioTrackViewModel.IsPlaying = false;
+
+        _browserCurrentTrack = null;
+        _browserCurrentViewModel = null;
+        _isBrowserPlaying = false;
+    }
+
     private void SetSettings(Dispatcher? dispatcher = null)
     {
         _maxYtMinutes = _userSettingsManager.Settings.MaxMinutesLength;
+        var wasBrowserPlaybackMode = IsBrowserPlaybackMode;
+        IsBrowserPlaybackMode = _userSettingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
+        BrowserPlayerGridLength = IsBrowserPlaybackMode ? new GridLength(260) : new GridLength(0);
+
+        if (wasBrowserPlaybackMode && !IsBrowserPlaybackMode)
+        {
+            ClearBrowserCurrentTrack();
+            BrowserStopRequested?.Invoke(this, EventArgs.Empty);
+            BrowserPlayerStatusText = "YouTube browser playback is disabled.";
+        }
+
         NotifyCanTouchButtons();
         if (dispatcher != null)
             dispatcher.Invoke(async () => await RetryFailedTracksAsync());
@@ -332,7 +489,7 @@ public partial class YtAudioViewModel : ObservableObject
     {
         _windowService.OpenYtSettingsWindow();
     }
-    
+
     private void NotifyCanTouchButtons()
     {
         SwitchAutoPlayCommand.NotifyCanExecuteChanged();
@@ -342,7 +499,6 @@ public partial class YtAudioViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanTouchButtons))]
     private Task SwitchAutoPlayAsync()
     {
-        // do nothing for now (AutoPlayEnabled is changed via binding)
         return Task.CompletedTask;
     }
 
@@ -396,4 +552,34 @@ public partial class YtAudioViewModel : ObservableObject
             _ => status.Message
         };
     }
+
+    private static string? TryExtractYouTubeId(string uri)
+    {
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed))
+            return null;
+
+        if (parsed.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+            return parsed.AbsolutePath.Trim('/').Split('/').FirstOrDefault();
+
+        if (parsed.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var query = parsed.Query.TrimStart('?')
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Split('=', 2))
+                .FirstOrDefault(pair => pair.Length == 2 && pair[0] == "v");
+            if (query != null)
+                return Uri.UnescapeDataString(query[1]);
+
+            var segments = parsed.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 2 && segments[0] is "shorts" or "live" or "embed")
+                return segments[1];
+        }
+
+        return null;
+    }
+
+    private static string FormatTime(TimeSpan time) =>
+        time.TotalHours >= 1
+            ? time.ToString(@"h\:mm\:ss")
+            : time.ToString(@"m\:ss");
 }

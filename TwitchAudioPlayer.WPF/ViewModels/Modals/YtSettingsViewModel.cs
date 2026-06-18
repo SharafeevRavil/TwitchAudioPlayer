@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.DonationAlerts;
+using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using TwitchAudioPlayer.WPF.Services.Proxy;
 using TwitchAudioPlayer.WPF.Services.Twitch;
 
@@ -16,6 +17,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     private readonly IProxyService _proxyService;
 
     [ObservableProperty] private double? _maxMinutesLength;
+    [ObservableProperty] private YouTubePlaybackMode _youTubePlaybackMode;
 
     public YtSettingsViewModel(IUserSettingsManager userSettingsManager, DonationAlertsService donationAlertsService,
         TwitchService twitchService, IProxyService proxyService)
@@ -30,6 +32,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
 
         // YT
         MaxMinutesLength = _userSettingsManager.Settings.MaxMinutesLength;
+        YouTubePlaybackMode = _userSettingsManager.Settings.YouTubePlaybackMode;
         LoadProxySettings();
 
         // Twitch
@@ -61,6 +64,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     {
         // Yt
         if (MaxMinutesLength.HasValue) _userSettingsManager.Settings.MaxMinutesLength = MaxMinutesLength.Value;
+        _userSettingsManager.Settings.YouTubePlaybackMode = YouTubePlaybackMode;
         // Twitch
         _userSettingsManager.Settings.TwitchRewardTitle = TwitchRewardTitle;
         _userSettingsManager.Settings.TwitchRewardPrompt = TwitchRewardPrompt;
@@ -76,6 +80,8 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     }
 
     #region Proxy
+
+    public IReadOnlyList<YouTubePlaybackMode> YouTubePlaybackModes { get; } = Enum.GetValues<YouTubePlaybackMode>();
 
     public IReadOnlyList<ProxyMode> ProxyModes { get; } = Enum.GetValues<ProxyMode>();
 

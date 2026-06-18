@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using MusicX.Shared.Player;
 using Serilog;
+using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.Proxy;
 using YoutubeExplode;
 using YoutubeExplode.Exceptions;
@@ -36,23 +37,34 @@ public class YouTubeService : IDisposable
     private static readonly SemaphoreSlim Semaphore = new(5);
     private readonly ILogger _logger = Log.ForContext<YouTubeService>();
     private readonly IProxyService _proxyService;
+    private readonly IUserSettingsManager _settingsManager;
     private readonly Random _random = new();
     private HttpClient? _httpClient;
     private YoutubeClient? _youtube;
     private Uri? _youtubeProxyUri;
 
-    public YouTubeService(IProxyService proxyService)
+    public YouTubeService(IProxyService proxyService, IUserSettingsManager settingsManager)
     {
         _proxyService = proxyService;
+        _settingsManager = settingsManager;
     }
 
     public async Task<(PlaylistTrack? Track, YtTrackError? Error)> GetPlaylistTrack(string url,
         CancellationToken cancellationToken = default)
     {
+        var useBrowserPlayback = _settingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
+
         _logger.Information("Start processing YouTube track");
         var (video, infoError) = await GetTrackInfo(url, cancellationToken);
         if (video == null)
         {
+            if (useBrowserPlayback && TryExtractYouTubeId(url) is { Length: > 0 } videoId)
+            {
+                _logger.Warning("Failed to get YouTube video info, creating browser-only track for video ID: {VideoId}",
+                    videoId);
+                return (CreateBrowserOnlyTrack(url, videoId), null);
+            }
+
             _logger.Warning("Failed to get YouTube video info");
             return (null, infoError ?? YtTrackError.FailedToGetInfo);
         }
@@ -64,18 +76,22 @@ public class YouTubeService : IDisposable
             return (null, YtTrackError.TrackZeroDuration);
         }
 
-        _logger.Information("Getting YouTube audio stream: {Title}", video.Title);
-        var stream = await GetTrackStreamWithRetryAsync(video, cancellationToken);
-        if (stream == null)
+        IStreamInfo? stream = null;
+        if (!useBrowserPlayback)
         {
-            _logger.Error("Failed to get YouTube audio stream: {Title}", video.Title);
-            return (null, YtTrackError.FailedToGetStream);
+            _logger.Information("Getting YouTube audio stream: {Title}", video.Title);
+            stream = await GetTrackStreamWithRetryAsync(video, cancellationToken);
+            if (stream == null)
+            {
+                _logger.Error("Failed to get YouTube audio stream: {Title}", video.Title);
+                return (null, YtTrackError.FailedToGetStream);
+            }
         }
 
         var fakeVkAlbum =
             new VkAlbumId(-1, -1, "", "", video.Thumbnails.Count > 0 ? video.Thumbnails[0].Url : "", null);
         var artists = new List<TrackArtist> { new(video.Author.ChannelTitle, new ArtistId("", ArtistIdType.None)) };
-        var fakeVkData = new YtTrackData(stream.Url, false, false, null, video.Duration ?? TimeSpan.MaxValue,
+        var fakeVkData = new YtTrackData(stream?.Url ?? url, false, false, null, video.Duration ?? TimeSpan.MaxValue,
             GetFakeId(), "", null, null, null);
         var playlistTrack = new PlaylistTrack(video.Title, video.Description, fakeVkAlbum, artists, null, fakeVkData);
         _logger.Information("PlaylistTrack created for YouTube video: {Title}", video.Title);
@@ -112,6 +128,42 @@ public class YouTubeService : IDisposable
         var buffer = new byte[8];
         random.NextBytes(buffer);
         return BitConverter.ToInt64(buffer, 0);
+    }
+
+    private PlaylistTrack CreateBrowserOnlyTrack(string url, string videoId)
+    {
+        var fakeVkAlbum = new VkAlbumId(-1, -1, "", "", "", null);
+        var artists = new List<TrackArtist> { new("YouTube", new ArtistId("", ArtistIdType.None)) };
+        var fakeVkData = new YtTrackData(url, false, false, null,
+            TimeSpan.FromMinutes(Math.Max(1, _settingsManager.Settings.MaxMinutesLength)),
+            GetFakeId(), "", null, null, null);
+
+        return new PlaylistTrack($"YouTube: {videoId}", url, fakeVkAlbum, artists, null, fakeVkData);
+    }
+
+    private static string? TryExtractYouTubeId(string uri)
+    {
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed))
+            return null;
+
+        if (parsed.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+            return parsed.AbsolutePath.Trim('/').Split('/').FirstOrDefault();
+
+        if (parsed.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var query = parsed.Query.TrimStart('?')
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Split('=', 2))
+                .FirstOrDefault(pair => pair.Length == 2 && pair[0] == "v");
+            if (query != null)
+                return Uri.UnescapeDataString(query[1]);
+
+            var segments = parsed.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 2 && segments[0] is "shorts" or "live" or "embed")
+                return segments[1];
+        }
+
+        return null;
     }
 
     private async Task<(Video? Video, YtTrackError? Error)> GetTrackInfo(string url, CancellationToken cancellationToken = default)

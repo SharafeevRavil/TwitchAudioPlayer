@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YouTube Player</title>
+    <style>
+        html, body, #player {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+<div id="player"></div>
+<script>
+    let player;
+    let isReady = false;
+    let pendingVideo = null;
+
+    function post(type, payload) {
+        if (!window.chrome || !window.chrome.webview) {
+            return;
+        }
+
+        window.chrome.webview.postMessage({
+            type,
+            ...(payload || {})
+        });
+    }
+
+    function flushPendingVideo() {
+        if (!isReady || !pendingVideo) {
+            return;
+        }
+
+        const video = pendingVideo;
+        pendingVideo = null;
+        loadVideo(video.videoId, video.startSeconds);
+    }
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player("player", {
+            width: "100%",
+            height: "100%",
+            playerVars: {
+                autoplay: 0,
+                controls: 1,
+                disablekb: 0,
+                fs: 1,
+                modestbranding: 1,
+                playsinline: 1,
+                rel: 0,
+                origin: window.location.origin
+            },
+            events: {
+                onReady: () => {
+                    isReady = true;
+                    post("ready");
+                    flushPendingVideo();
+                },
+                onStateChange: event => {
+                    post("state", { state: event.data });
+                    if (event.data === YT.PlayerState.ENDED) {
+                        post("ended");
+                    }
+                },
+                onError: event => post("error", { errorCode: event.data })
+            }
+        });
+    }
+
+    function loadVideo(videoId, startSeconds) {
+        if (!isReady || !player) {
+            pendingVideo = { videoId, startSeconds: startSeconds || 0 };
+            return;
+        }
+
+        player.loadVideoById({
+            videoId,
+            startSeconds: startSeconds || 0
+        });
+        player.playVideo();
+    }
+
+    window.tapPlayer = {
+        load: loadVideo,
+        play: () => player && player.playVideo(),
+        pause: () => player && player.pauseVideo(),
+        stop: () => player && player.stopVideo(),
+        seek: seconds => player && player.seekTo(seconds || 0, true)
+    };
+
+    window.setInterval(() => {
+        if (!isReady || !player || typeof player.getCurrentTime !== "function") {
+            return;
+        }
+
+        const state = player.getPlayerState();
+        if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
+            post("position", {
+                position: player.getCurrentTime() || 0,
+                duration: player.getDuration() || 0
+            });
+        }
+    }, 500);
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
