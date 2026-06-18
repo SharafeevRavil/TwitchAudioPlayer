@@ -14,6 +14,46 @@ namespace TwitchAudioPlayer.WPF.Views;
 public partial class BrowserPlayerWindow : Window
 {
     private const string PlayerHostName = "tap-player.local";
+    private const string HideYouTubeChromeCss = """
+        .ytp-chrome-top,
+        .ytp-chrome-bottom,
+        .ytp-gradient-top,
+        .ytp-gradient-bottom,
+        .ytp-title,
+        .ytp-title-channel,
+        .ytp-title-text,
+        .ytp-title-link,
+        .ytp-show-cards-title,
+        .ytp-pause-overlay,
+        .ytp-bezel,
+        .ytp-bezel-text-wrapper,
+        .ytp-watermark,
+        .ytp-youtube-button,
+        .ytp-share-button,
+        .ytp-watch-later-button,
+        .ytp-copylink-button,
+        .ytp-cards-button,
+        .ytp-cards-teaser,
+        .ytp-ce-element,
+        .ytp-ce-covering-overlay,
+        .ytp-ce-expanding-overlay,
+        .ytp-autonav-endscreen-upnext,
+        .ytp-endscreen-content,
+        .ytp-related-on-error-overlay,
+        .videowall-endscreen,
+        .html5-endscreen {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        .html5-video-player,
+        .html5-video-player * {
+            cursor: none !important;
+        }
+        """;
+
     private const int WmSizing = 0x0214;
     private const int WmszLeft = 1;
     private const int WmszRight = 2;
@@ -157,6 +197,8 @@ public partial class BrowserPlayerWindow : Window
         YoutubeWebView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
         YoutubeWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
         YoutubeWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+        YoutubeWebView.CoreWebView2.FrameCreated += CoreWebView2OnFrameCreated;
+        await YoutubeWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(GetHideYouTubeChromeScript());
         YoutubeWebView.CoreWebView2.WebMessageReceived += CoreWebView2OnWebMessageReceived;
         YoutubeWebView.NavigationCompleted += YoutubeWebViewOnNavigationCompleted;
         YoutubeWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
@@ -167,6 +209,23 @@ public partial class BrowserPlayerWindow : Window
         _pageLoaded = NewPageLoadedSource();
         YoutubeWebView.Source = GetPlayerPageUri();
         _webViewInitialized = true;
+    }
+
+    private void CoreWebView2OnFrameCreated(object? sender, CoreWebView2FrameCreatedEventArgs e)
+    {
+        e.Frame.DOMContentLoaded += async (_, _) => await InjectYouTubeChromeCssAsync(e.Frame);
+    }
+
+    private static async Task InjectYouTubeChromeCssAsync(CoreWebView2Frame frame)
+    {
+        try
+        {
+            await frame.ExecuteScriptAsync(GetHideYouTubeChromeScript());
+        }
+        catch
+        {
+            // Some transient YouTube frames navigate away before script injection completes.
+        }
     }
 
     private async Task WaitForPageAsync()
@@ -332,6 +391,76 @@ public partial class BrowserPlayerWindow : Window
 
     private static string FormatNumber(double value) =>
         value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string GetHideYouTubeChromeScript()
+    {
+        var css = JsonSerializer.Serialize(HideYouTubeChromeCss);
+        return $$"""
+            (() => {
+                const css = {{css}};
+                const styleId = "tap-hide-youtube-chrome";
+                const hiddenSelectors = [
+                    ".ytp-chrome-top",
+                    ".ytp-chrome-bottom",
+                    ".ytp-gradient-top",
+                    ".ytp-gradient-bottom",
+                    ".ytp-title",
+                    ".ytp-title-channel",
+                    ".ytp-title-text",
+                    ".ytp-title-link",
+                    ".ytp-show-cards-title",
+                    ".ytp-pause-overlay",
+                    ".ytp-bezel",
+                    ".ytp-bezel-text-wrapper",
+                    ".ytp-watermark",
+                    ".ytp-youtube-button",
+                    ".ytp-share-button",
+                    ".ytp-watch-later-button",
+                    ".ytp-copylink-button",
+                    ".ytp-cards-button",
+                    ".ytp-cards-teaser",
+                    ".ytp-ce-element",
+                    ".ytp-ce-covering-overlay",
+                    ".ytp-ce-expanding-overlay",
+                    ".ytp-autonav-endscreen-upnext",
+                    ".ytp-endscreen-content",
+                    ".ytp-related-on-error-overlay",
+                    ".videowall-endscreen",
+                    ".html5-endscreen"
+                ];
+
+                const apply = () => {
+                    if (!document.documentElement) {
+                        return;
+                    }
+
+                    if (!document.getElementById(styleId)) {
+                        const style = document.createElement("style");
+                        style.id = styleId;
+                        style.textContent = css;
+                        document.documentElement.appendChild(style);
+                    }
+
+                    for (const selector of hiddenSelectors) {
+                        for (const element of document.querySelectorAll(selector)) {
+                            element.style.setProperty("display", "none", "important");
+                            element.style.setProperty("opacity", "0", "important");
+                            element.style.setProperty("visibility", "hidden", "important");
+                            element.style.setProperty("pointer-events", "none", "important");
+                        }
+                    }
+                };
+
+                apply();
+                window.setInterval(apply, 250);
+                new MutationObserver(apply).observe(document.documentElement, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true
+                });
+            })();
+            """;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect
