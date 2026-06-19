@@ -12,14 +12,21 @@ namespace TwitchAudioPlayer.WPF.Views;
 public partial class MainWindow : Window
 {
     private readonly BrowserPlayerWindowService _browserPlayerWindowService;
+    private readonly IUserSettingsManager _userSettingsManager;
 
     public MainWindow(MainWindowViewModel mainWindowViewModel, VkAudioView audioPanel, AudioPlayerView audioPlayerView,
-        YtAudioView youTubeAudioView, BrowserPlayerWindowService browserPlayerWindowService)
+        YtAudioView youTubeAudioView, BrowserPlayerWindowService browserPlayerWindowService,
+        IUserSettingsManager userSettingsManager)
     {
         InitializeComponent();
         DataContext = mainWindowViewModel;
         _browserPlayerWindowService = browserPlayerWindowService;
+        _userSettingsManager = userSettingsManager;
+
+        WindowBoundsHelper.Apply(this, _userSettingsManager.Settings.MainWindowBounds);
         StateChanged += OnWindowStateChanged;
+        Closing += (_, _) => SaveWindowBounds();
+        OnWindowStateChanged(this, EventArgs.Empty);
 
         VkAudioView.Content = audioPanel;
         YouTubeAudioView.Content = youTubeAudioView;
@@ -59,5 +66,11 @@ public partial class MainWindow : Window
             : PackIconKind.WindowMaximize;
 
         _browserPlayerWindowService.SyncWithMainWindowState(WindowState);
+    }
+
+    private void SaveWindowBounds()
+    {
+        WindowBoundsHelper.Capture(this, _userSettingsManager.Settings.MainWindowBounds);
+        _userSettingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
     }
 }

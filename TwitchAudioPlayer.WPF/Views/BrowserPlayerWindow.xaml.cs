@@ -7,9 +7,8 @@ using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using MusicX.Shared.Player;
 using Microsoft.Web.WebView2.Core;
-using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
+using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using TwitchAudioPlayer.WPF.ViewModels;
 
@@ -102,9 +101,10 @@ public partial class BrowserPlayerWindow : Window
     private const int WmszBottomLeft = 7;
     private const int WmszBottomRight = 8;
     private const double AspectRatio = 16d / 9d;
-    private const int PlayerChromeHeight = 114;
+    private const int DefaultPlayerChromeHeight = 166;
 
     private readonly BrowserPlayerService _browserPlayer;
+    private readonly IUserSettingsManager _userSettingsManager;
     private readonly BrowserPlayerViewModel _viewModel;
     private TaskCompletionSource _pageLoaded = NewPageLoadedSource();
     private Task? _webViewInitializationTask;
@@ -113,14 +113,21 @@ public partial class BrowserPlayerWindow : Window
     private bool _wasMinimizedWithMainWindow;
     private int _activeRequestId;
 
-    public BrowserPlayerWindow(BrowserPlayerViewModel viewModel, BrowserPlayerService browserPlayer)
+    public BrowserPlayerWindow(
+        BrowserPlayerViewModel viewModel,
+        BrowserPlayerService browserPlayer,
+        IUserSettingsManager userSettingsManager)
     {
         InitializeComponent();
         _viewModel = viewModel;
         _browserPlayer = browserPlayer;
+        _userSettingsManager = userSettingsManager;
         DataContext = viewModel;
 
+        WindowBoundsHelper.Apply(this, _userSettingsManager.Settings.BrowserPlayerWindowBounds);
+        _viewModel.IsFullScreen = WindowState == WindowState.Maximized;
         Loaded += OnLoaded;
+        Closing += (_, _) => SaveWindowBounds();
         SourceInitialized += OnSourceInitialized;
         SizeChanged += OnSizeChanged;
         _viewModel.PinChanged += (_, value) => Topmost = value;
@@ -133,7 +140,7 @@ public partial class BrowserPlayerWindow : Window
         };
         TrackTitleTextBlock.Loaded += (_, _) => RestartTitleMarquee();
         TrackTitleTextBlock.SizeChanged += (_, _) => RestartTitleMarquee();
-        TrackTitleOverlay.SizeChanged += (_, _) => RestartTitleMarquee();
+        TrackTitleStrip.SizeChanged += (_, _) => RestartTitleMarquee();
         _browserPlayer.LoadRequested += BrowserPlayerOnLoadRequested;
         _browserPlayer.PlayRequested += BrowserPlayerOnPlayRequested;
         _browserPlayer.PauseRequested += BrowserPlayerOnPauseRequested;
@@ -190,9 +197,8 @@ public partial class BrowserPlayerWindow : Window
     private async void BrowserPlayerOnLoadRequested(object? sender, YouTubeBrowserPlaybackRequest e)
     {
         _activeRequestId = e.RequestId;
-        var title = FormatTrackTitle(e.Track);
         await ExecutePlayerCommandAsync(
-            $"load({JsonSerializer.Serialize(e.VideoId)}, {FormatSeconds(e.StartPosition)}, {e.RequestId}, {JsonSerializer.Serialize(title)})",
+            $"load({JsonSerializer.Serialize(e.VideoId)}, {FormatSeconds(e.StartPosition)}, {e.RequestId})",
             requestId: e.RequestId);
         await ExecutePlayerCommandAsync(
             $"setVolume({FormatNumber(_browserPlayer.Volume)})",
@@ -395,7 +401,7 @@ public partial class BrowserPlayerWindow : Window
         _isResizingToAspect = true;
         try
         {
-            var targetHeight = Width / AspectRatio + PlayerChromeHeight;
+            var targetHeight = Width / AspectRatio + GetPlayerChromeHeight();
             if (Math.Abs(Height - targetHeight) > 1)
                 Height = Math.Max(MinHeight, targetHeight);
         }
@@ -417,13 +423,14 @@ public partial class BrowserPlayerWindow : Window
         return IntPtr.Zero;
     }
 
-    private static void KeepSizingRectAtAspectRatio(int edge, ref Rect rect)
+    private void KeepSizingRectAtAspectRatio(int edge, ref Rect rect)
     {
+        var chromeHeight = GetPlayerChromeHeight();
         var width = Math.Max(1, rect.Right - rect.Left);
         var height = Math.Max(1, rect.Bottom - rect.Top);
-        var videoHeight = Math.Max(1, height - PlayerChromeHeight);
+        var videoHeight = Math.Max(1, height - chromeHeight);
         var targetWidth = (int)Math.Round(videoHeight * AspectRatio);
-        var targetHeight = (int)Math.Round(width / AspectRatio + PlayerChromeHeight);
+        var targetHeight = (int)Math.Round(width / AspectRatio + chromeHeight);
 
         switch (edge)
         {
@@ -460,6 +467,12 @@ public partial class BrowserPlayerWindow : Window
                     rect.Bottom = rect.Top + targetHeight;
                 break;
         }
+    }
+
+    private double GetPlayerChromeHeight()
+    {
+        var actualHeight = TopChrome.ActualHeight + TrackTitleStrip.ActualHeight + ControlsPanel.ActualHeight;
+        return actualHeight > 0 ? actualHeight : DefaultPlayerChromeHeight;
     }
 
     private void DragStrip_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -510,6 +523,12 @@ public partial class BrowserPlayerWindow : Window
         TrackTitleTranslateTransform.BeginAnimation(TranslateTransform.XProperty, animation);
     }
 
+    private void SaveWindowBounds()
+    {
+        WindowBoundsHelper.Capture(this, _userSettingsManager.Settings.BrowserPlayerWindowBounds);
+        _userSettingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
+    }
+
     private static string GetPlayerPageFolder() =>
         Path.Combine(AppContext.BaseDirectory, "Assets", "WebView2");
 
@@ -521,12 +540,6 @@ public partial class BrowserPlayerWindow : Window
 
     private static string FormatNumber(double value) =>
         value.ToString("0.###", CultureInfo.InvariantCulture);
-
-    private static string FormatTrackTitle(PlaylistTrack track)
-    {
-        var artist = track.GetArtistsString();
-        return string.IsNullOrWhiteSpace(artist) ? track.Title : $"{track.Title} - {artist}";
-    }
 
     private static string GetHideYouTubeChromeScript()
     {

@@ -28,6 +28,8 @@ public class UserSettings
     public double MaxMinutesLength { get; set; } = 6;
     public YouTubePlaybackMode YouTubePlaybackMode { get; set; } = YouTubePlaybackMode.Browser;
     public bool BrowserPlayerTopmost { get; set; } = true;
+    public WindowBoundsSettings MainWindowBounds { get; set; } = new();
+    public WindowBoundsSettings BrowserPlayerWindowBounds { get; set; } = new();
     //twitch
     public string? TwitchRewardTitle { get; set; } = "Заказ музыки";
     public string? TwitchRewardPrompt { get; set; } = "Укажите ссылку на YouTube видео. Максимальная длительность - 6 минут.";
@@ -37,6 +39,15 @@ public class UserSettings
     public long? DaAppId { get; set; }
     public string? DaAppKey { get; set; }
     public string? DaWidgetToken { get; set; }
+}
+
+public class WindowBoundsSettings
+{
+    public double? Left { get; set; }
+    public double? Top { get; set; }
+    public double? Width { get; set; }
+    public double? Height { get; set; }
+    public bool IsMaximized { get; set; }
 }
 
 public class UserSettingsManager : IUserSettingsManager
