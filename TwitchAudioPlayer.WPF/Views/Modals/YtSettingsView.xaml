@@ -41,6 +41,10 @@
                           SelectedItem="{Binding YouTubePlaybackMode, Mode=TwoWay}" />
             </Grid>
 
+            <CheckBox Content="Different sound level for different sources"
+                      IsChecked="{Binding UseSeparateSourceVolumes, Mode=TwoWay}"
+                      Margin="0,0,0,14" />
+
             <TextBlock Text="Настройки Twitch" FontSize="24" FontWeight="Bold" Margin="0,0,0,10" />
             <Grid Margin="0, 0, 0, 10">
                 <Grid.ColumnDefinitions>

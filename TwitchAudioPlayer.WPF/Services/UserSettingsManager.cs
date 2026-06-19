@@ -8,25 +8,26 @@ namespace TwitchAudioPlayer.WPF.Services;
 public class UserSettings
 {
     //player
-    public Key PrevKey { get; set; } = Key.F7; 
+    public Key PrevKey { get; set; } = Key.F7;
     public ModifierKeys PrevModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
-    public Key PauseKey { get; set; } = Key.F8; 
+    public Key PauseKey { get; set; } = Key.F8;
     public ModifierKeys PauseModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
-    public Key NextKey { get; set; } = Key.F9; 
+    public Key NextKey { get; set; } = Key.F9;
     public ModifierKeys NextModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
-    public Key VolMuteKey { get; set; } = Key.F10; 
-    public ModifierKeys VolMuteModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift; 
-    public Key VolDownKey { get; set; } = Key.F11; 
+    public Key VolMuteKey { get; set; } = Key.F10;
+    public ModifierKeys VolMuteModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
+    public Key VolDownKey { get; set; } = Key.F11;
     public ModifierKeys VolDownModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
     public Key VolUpKey { get; set; } = Key.F12;
-    public ModifierKeys VolUpModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift; 
-    
+    public ModifierKeys VolUpModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
+
     //vk
     public long? VkUserId { get; set; }
 
     //yt
     public double MaxMinutesLength { get; set; } = 6;
     public YouTubePlaybackMode YouTubePlaybackMode { get; set; } = YouTubePlaybackMode.Browser;
+    public bool UseSeparateSourceVolumes { get; set; } = true;
     public bool BrowserPlayerTopmost { get; set; } = true;
     public WindowBoundsSettings MainWindowBounds { get; set; } = new();
     public WindowBoundsSettings BrowserPlayerWindowBounds { get; set; } = new();

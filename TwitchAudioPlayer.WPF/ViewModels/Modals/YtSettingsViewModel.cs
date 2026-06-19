@@ -17,6 +17,8 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     [ObservableProperty] private double? _maxMinutesLength;
     [ObservableProperty] private YouTubePlaybackMode _youTubePlaybackMode;
 
+    [ObservableProperty] private bool _useSeparateSourceVolumes;
+
     public YtSettingsViewModel(IUserSettingsManager userSettingsManager, DonationAlertsService donationAlertsService,
         TwitchService twitchService)
     {
@@ -30,6 +32,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         // YT
         MaxMinutesLength = _userSettingsManager.Settings.MaxMinutesLength;
         YouTubePlaybackMode = _userSettingsManager.Settings.YouTubePlaybackMode;
+        UseSeparateSourceVolumes = _userSettingsManager.Settings.UseSeparateSourceVolumes;
 
         // Twitch
         TwitchRewardTitle = _userSettingsManager.Settings.TwitchRewardTitle;
@@ -61,6 +64,7 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         // Yt
         if (MaxMinutesLength.HasValue) _userSettingsManager.Settings.MaxMinutesLength = MaxMinutesLength.Value;
         _userSettingsManager.Settings.YouTubePlaybackMode = YouTubePlaybackMode;
+        _userSettingsManager.Settings.UseSeparateSourceVolumes = UseSeparateSourceVolumes;
         // Twitch
         _userSettingsManager.Settings.TwitchRewardTitle = TwitchRewardTitle;
         _userSettingsManager.Settings.TwitchRewardPrompt = TwitchRewardPrompt;

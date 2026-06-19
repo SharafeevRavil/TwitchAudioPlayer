@@ -400,8 +400,12 @@ public partial class YtAudioViewModel : ObservableObject
         QueuedSelectedTrack = _browserCurrentViewModel;
         BrowserPlayerStatusText = $"Playing in browser: {viewModel.Title}";
 
-        _browserPlayer.SetVolume(_player.Volume);
-        _browserPlayer.SetMuted(_player.IsMuted);
+        if (!_userSettingsManager.Settings.UseSeparateSourceVolumes)
+        {
+            _browserPlayer.SetVolume(_player.Volume);
+            _browserPlayer.SetMuted(_player.IsMuted);
+        }
+
         _browserPlayer.Load(new YouTubeBrowserPlaybackRequest(
             videoId,
             TimeSpan.Zero,

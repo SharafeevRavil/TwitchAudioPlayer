@@ -242,11 +242,13 @@
                                 Height="40"
                                 Margin="0,0,8,0"
                                 Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
-                            <materialDesign:PackIcon Kind="{Binding VolumeIcon}" />
+                            <materialDesign:PackIcon Kind="{Binding VolumeIcon}"
+                                                     Foreground="{Binding VolumeAccentBrush}" />
                         </Button>
                         <Slider Minimum="0"
                                 Maximum="1"
                                 Value="{Binding VolumeSliderPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Foreground="{Binding VolumeAccentBrush}"
                                 Width="180"
                                 VerticalAlignment="Center" />
                     </StackPanel>

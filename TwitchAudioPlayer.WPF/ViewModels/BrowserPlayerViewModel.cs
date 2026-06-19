@@ -46,6 +46,12 @@ public partial class BrowserPlayerViewModel : ObservableObject
     [ObservableProperty] private string _artworkTitle = "";
     [ObservableProperty] private string _artworkArtist = "";
 
+    private const string CommonVolumeBrush = "#FF8A49E6";
+    private const string VkVolumeBrush = "#FF2787F5";
+    private const string YouTubeVolumeBrush = "#FFFF0033";
+
+    [ObservableProperty] private string _volumeAccentBrush = "#FF8A49E6";
+
     public BrowserPlayerViewModel(BrowserPlayerService browserPlayer, IUserSettingsManager userSettingsManager)
     {
         _browserPlayer = browserPlayer;
@@ -54,6 +60,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
 
         var dispatcher = Dispatcher.CurrentDispatcher;
         _browserPlayer.PropertyChanged += (_, _) => dispatcher.Invoke(UpdateState);
+        _userSettingsManager.SettingsChanged += (_, _) => dispatcher.Invoke(UpdateState);
         _player.TrackChangedEvent += (_, _) => dispatcher.Invoke(UpdateState);
         _player.PlayStateChangedEvent += (_, _) => dispatcher.Invoke(UpdateState);
         _player.PositionTrackChangedEvent += (_, _) => dispatcher.Invoke(UpdateState);
@@ -104,8 +111,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
             if (_isUpdatingFromPlayer)
                 return;
 
-            _player.Volume = value;
-            _browserPlayer.SetVolume(value);
+            SetActiveVolume(value);
         }
     }
 
@@ -166,8 +172,8 @@ public partial class BrowserPlayerViewModel : ObservableObject
         var position = _browserPlayer.IsYouTubeActive ? _browserPlayer.Position : _player.Position;
         var duration = _browserPlayer.IsYouTubeActive ? _browserPlayer.Duration : _player.Duration;
         var isPlaying = _browserPlayer.IsYouTubeActive ? _browserPlayer.IsPlaying : _player.IsPlaying;
-        var volume = _player.Volume;
-        var isMuted = _player.IsMuted;
+        var volume = GetActiveVolume();
+        var isMuted = GetActiveMuted();
 
         _isUpdatingFromPlayer = true;
         try
@@ -180,6 +186,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
             IsMuted = isMuted;
             PlayPauseIcon = isPlaying ? "Pause" : "Play";
             UpdateVolumeIcon();
+            UpdateVolumeAccentBrush();
         }
         finally
         {
@@ -260,6 +267,48 @@ public partial class BrowserPlayerViewModel : ObservableObject
             };
     }
 
+    private bool IsYouTubeVolumeActive() =>
+        _userSettingsManager.Settings.UseSeparateSourceVolumes && _browserPlayer.IsYouTubeActive;
+
+    private double GetActiveVolume() => IsYouTubeVolumeActive() ? _browserPlayer.Volume : _player.Volume;
+
+    private bool GetActiveMuted() => IsYouTubeVolumeActive() ? _browserPlayer.IsMuted : _player.IsMuted;
+
+    private void SetActiveVolume(double volume)
+    {
+        if (IsYouTubeVolumeActive())
+        {
+            _browserPlayer.SetVolume(volume);
+            return;
+        }
+
+        _player.Volume = volume;
+        if (!_userSettingsManager.Settings.UseSeparateSourceVolumes)
+            _browserPlayer.SetVolume(volume);
+    }
+
+    private void SetActiveMuted(bool isMuted)
+    {
+        if (IsYouTubeVolumeActive())
+        {
+            _browserPlayer.SetMuted(isMuted);
+            return;
+        }
+
+        _player.IsMuted = isMuted;
+        if (!_userSettingsManager.Settings.UseSeparateSourceVolumes)
+            _browserPlayer.SetMuted(isMuted);
+    }
+
+    private void UpdateVolumeAccentBrush()
+    {
+        VolumeAccentBrush = !_userSettingsManager.Settings.UseSeparateSourceVolumes
+            ? CommonVolumeBrush
+            : _browserPlayer.IsYouTubeActive
+                ? YouTubeVolumeBrush
+                : VkVolumeBrush;
+    }
+
     [RelayCommand]
     private void TogglePin()
     {
@@ -322,9 +371,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
     [RelayCommand]
     private void Mute()
     {
-        var isMuted = !_player.IsMuted;
-        _player.IsMuted = isMuted;
-        _browserPlayer.SetMuted(isMuted);
+        SetActiveMuted(!GetActiveMuted());
     }
 
     private static string FormatTime(TimeSpan time) =>
