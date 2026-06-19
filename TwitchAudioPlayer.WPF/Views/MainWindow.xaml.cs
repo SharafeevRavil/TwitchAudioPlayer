@@ -24,8 +24,8 @@ public partial class MainWindow : Window
         _userSettingsManager = userSettingsManager;
 
         WindowBoundsHelper.Apply(this, _userSettingsManager.Settings.MainWindowBounds);
+        WindowBoundsHelper.AttachAutoSave(this, _userSettingsManager.Settings.MainWindowBounds, _userSettingsManager);
         StateChanged += OnWindowStateChanged;
-        Closing += (_, _) => SaveWindowBounds();
         OnWindowStateChanged(this, EventArgs.Empty);
 
         VkAudioView.Content = audioPanel;
@@ -68,9 +68,4 @@ public partial class MainWindow : Window
         _browserPlayerWindowService.SyncWithMainWindowState(WindowState);
     }
 
-    private void SaveWindowBounds()
-    {
-        WindowBoundsHelper.Capture(this, _userSettingsManager.Settings.MainWindowBounds);
-        _userSettingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
-    }
 }

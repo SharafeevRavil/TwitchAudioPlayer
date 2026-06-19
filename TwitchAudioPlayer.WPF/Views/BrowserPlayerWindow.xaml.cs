@@ -125,9 +125,9 @@ public partial class BrowserPlayerWindow : Window
         DataContext = viewModel;
 
         WindowBoundsHelper.Apply(this, _userSettingsManager.Settings.BrowserPlayerWindowBounds);
+        WindowBoundsHelper.AttachAutoSave(this, _userSettingsManager.Settings.BrowserPlayerWindowBounds, _userSettingsManager);
         _viewModel.IsFullScreen = WindowState == WindowState.Maximized;
         Loaded += OnLoaded;
-        Closing += (_, _) => SaveWindowBounds();
         SourceInitialized += OnSourceInitialized;
         SizeChanged += OnSizeChanged;
         _viewModel.PinChanged += (_, value) => Topmost = value;
@@ -522,12 +522,6 @@ public partial class BrowserPlayerWindow : Window
         animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(total)));
 
         TrackTitleTranslateTransform.BeginAnimation(TranslateTransform.XProperty, animation);
-    }
-
-    private void SaveWindowBounds()
-    {
-        WindowBoundsHelper.Capture(this, _userSettingsManager.Settings.BrowserPlayerWindowBounds);
-        _userSettingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
     }
 
     private static string GetPlayerPageFolder() =>

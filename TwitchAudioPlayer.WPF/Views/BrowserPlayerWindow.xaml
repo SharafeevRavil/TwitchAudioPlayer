@@ -105,7 +105,7 @@
                             </Image.Effect>
                         </Image>
                         <Rectangle Fill="#66000000" />
-                        <Grid Margin="36">
+                        <Grid>
                             <Image Source="{Binding ArtworkCoverUrl}"
                                    Stretch="Uniform"
                                    HorizontalAlignment="Stretch"

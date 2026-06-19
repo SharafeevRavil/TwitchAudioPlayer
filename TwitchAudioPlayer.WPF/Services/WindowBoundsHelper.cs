@@ -1,9 +1,12 @@
 using System.Windows;
+using System.Windows.Threading;
 
 namespace TwitchAudioPlayer.WPF.Services;
 
 public static class WindowBoundsHelper
 {
+    private static readonly TimeSpan AutoSaveDelay = TimeSpan.FromMilliseconds(500);
+
     public static void Apply(Window window, WindowBoundsSettings bounds)
     {
         if (!TryCreateRect(bounds, out var rect) || !IntersectsVirtualScreen(rect))
@@ -33,6 +36,40 @@ public static class WindowBoundsHelper
         bounds.Width = Math.Max(window.MinWidth, rect.Width);
         bounds.Height = Math.Max(window.MinHeight, rect.Height);
         bounds.IsMaximized = window.WindowState == WindowState.Maximized;
+    }
+
+    public static void AttachAutoSave(Window window, WindowBoundsSettings bounds, IUserSettingsManager userSettingsManager)
+    {
+        var saveTimer = new DispatcherTimer(DispatcherPriority.Background, window.Dispatcher)
+        {
+            Interval = AutoSaveDelay
+        };
+
+        saveTimer.Tick += async (_, _) =>
+        {
+            saveTimer.Stop();
+            Capture(window, bounds);
+            await userSettingsManager.SaveSettingsAsync();
+        };
+
+        void ScheduleSave(object? sender, EventArgs e)
+        {
+            if (!window.IsLoaded)
+                return;
+
+            saveTimer.Stop();
+            saveTimer.Start();
+        }
+
+        window.LocationChanged += ScheduleSave;
+        window.SizeChanged += ScheduleSave;
+        window.StateChanged += ScheduleSave;
+        window.Closing += (_, _) =>
+        {
+            saveTimer.Stop();
+            Capture(window, bounds);
+            userSettingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
+        };
     }
 
     private static bool TryCreateRect(WindowBoundsSettings bounds, out Rect rect)
