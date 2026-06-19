@@ -17,6 +17,7 @@ public partial class YtAudioTrackViewModel : ObservableObject
     [ObservableProperty] private bool _isRetrying;
     [ObservableProperty] private string _failedTitle = "";
     [ObservableProperty] private string _failedMessage = "";
+    [ObservableProperty] private string _playbackErrorMessage = "";
     [ObservableProperty] private string _orderDateText = "";
 
     /// <inheritdoc/>
@@ -41,7 +42,19 @@ public partial class YtAudioTrackViewModel : ObservableObject
 
     public bool CanRetry => AudioTrack.CanRetry && !IsRetrying;
 
+    public bool HasPlaybackError => !string.IsNullOrWhiteSpace(PlaybackErrorMessage);
+
     public event EventHandler<YtAudioTrackViewModel>? RetryRequested;
+
+    public void SetPlaybackError(string message)
+    {
+        PlaybackErrorMessage = message;
+    }
+
+    public void ClearPlaybackError()
+    {
+        PlaybackErrorMessage = "";
+    }
 
     public void ReplaceAudioTrack(MusicOrderWithTrack audioTrack)
     {
@@ -54,6 +67,7 @@ public partial class YtAudioTrackViewModel : ObservableObject
         AudioTrackViewModel = AudioTrack.PlaylistTrack != null
             ? new AudioTrackViewModel(AudioTrack.PlaylistTrack, true)
             : null;
+        ClearPlaybackError();
         OnPropertyChanged(nameof(CanRetry));
     }
 
@@ -67,6 +81,11 @@ public partial class YtAudioTrackViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanRetry));
         RetryCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnPlaybackErrorMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasPlaybackError));
     }
 
     private static string BuildFailedTitle(string uri)

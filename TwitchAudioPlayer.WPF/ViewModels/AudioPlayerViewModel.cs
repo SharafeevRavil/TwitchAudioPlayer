@@ -16,10 +16,13 @@ namespace TwitchAudioPlayer.WPF.ViewModels;
 
 public partial class AudioPlayerViewModel : ObservableObject
 {
+    private static readonly TimeSpan VolumeSaveDelay = TimeSpan.FromSeconds(3);
+
     private readonly IUserSettingsManager _userSettingsManager;
     private readonly BrowserPlayerService _browserPlayer;
     private readonly PlayerService _player;
     private readonly ILogger _logger = Log.ForContext<AudioPlayerViewModel>();
+    private CancellationTokenSource? _volumeSaveCts;
     private double _currentPosition;
     [ObservableProperty] private bool _isMuted;
 
@@ -59,6 +62,7 @@ public partial class AudioPlayerViewModel : ObservableObject
         SetSettings();
 
         _player = StaticService.Container.GetRequiredService<PlayerService>();
+        ApplySavedVolumes();
         SyncCommonVolumeToBrowserIfNeeded();
 
         SetTrack(_browserPlayer.IsYouTubeActive ? _browserPlayer.CurrentTrack : _player.CurrentTrack);
@@ -170,6 +174,7 @@ public partial class AudioPlayerViewModel : ObservableObject
             SetProperty(ref _volume, value);
             SetProperty(ref _volumeSliderPosition, VolumeCurve.VolumeToSlider(value), nameof(VolumeSliderPosition));
             SetActiveVolume(value);
+            ScheduleActiveVolumeSave(value);
         }
     }
 
@@ -253,6 +258,53 @@ public partial class AudioPlayerViewModel : ObservableObject
         _player.Volume = volume;
         if (!_userSettingsManager.Settings.UseSeparateSourceVolumes)
             _browserPlayer.SetVolume(volume);
+    }
+
+    private void ApplySavedVolumes()
+    {
+        _player.Volume = ClampVolume(_userSettingsManager.Settings.VkVolume);
+        _browserPlayer.SetVolume(ClampVolume(_userSettingsManager.Settings.YouTubeVolume));
+    }
+
+    private void ScheduleActiveVolumeSave(double volume)
+    {
+        var settings = _userSettingsManager.Settings;
+        volume = ClampVolume(volume);
+
+        if (IsYouTubeVolumeActive())
+        {
+            settings.YouTubeVolume = volume;
+        }
+        else
+        {
+            settings.VkVolume = volume;
+            if (!settings.UseSeparateSourceVolumes)
+                settings.YouTubeVolume = volume;
+        }
+
+        _volumeSaveCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _volumeSaveCts = cts;
+        _ = SaveVolumeAfterDelayAsync(cts);
+    }
+
+    private async Task SaveVolumeAfterDelayAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(VolumeSaveDelay, cts.Token);
+            await _userSettingsManager.SaveSettingsSilentlyAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_volumeSaveCts, cts))
+                _volumeSaveCts = null;
+
+            cts.Dispose();
+        }
     }
 
     private void SetActiveMuted(bool isMuted)
@@ -418,4 +470,6 @@ public partial class AudioPlayerViewModel : ObservableObject
             _logger.Error(e, "Error while toggling mute");
         }
     }
+
+    private static double ClampVolume(double volume) => Math.Clamp(volume, 0, 1);
 }

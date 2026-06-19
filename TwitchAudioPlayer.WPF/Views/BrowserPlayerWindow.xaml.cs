@@ -370,9 +370,9 @@ public partial class BrowserPlayerWindow : Window
                     break;
                 case "error":
                     var errorCode = root.TryGetProperty("errorCode", out var error)
-                        ? error.GetInt32().ToString(CultureInfo.InvariantCulture)
-                        : "unknown";
-                    _browserPlayer.ReportFailure($"YouTube player error: {errorCode}");
+                        ? error.GetInt32()
+                        : 0;
+                    _browserPlayer.ReportFailure(GetYouTubeErrorMessage(errorCode));
                     break;
             }
         }
@@ -535,6 +535,18 @@ public partial class BrowserPlayerWindow : Window
 
     private static string FormatNumber(double value) =>
         value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string GetYouTubeErrorMessage(int errorCode) =>
+        errorCode switch
+        {
+            2 => "YouTube player error 2: invalid video id or playback parameter.",
+            5 => "YouTube player error 5: this video cannot be played in the HTML5 player.",
+            100 => "YouTube player error 100: video not found, private, or removed.",
+            101 or 150 => $"YouTube player error {errorCode}: owner disabled embedded playback. Open on YouTube.",
+            _ => errorCode == 0
+                ? "YouTube player error: unknown playback error."
+                : $"YouTube player error {errorCode}: playback failed."
+        };
 
     private static string GetHideYouTubeChromeScript()
     {

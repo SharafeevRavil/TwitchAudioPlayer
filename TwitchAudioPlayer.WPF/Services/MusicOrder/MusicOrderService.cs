@@ -84,7 +84,10 @@ public class MusicOrderService
 
     public void MarkPlayed(MusicOrder order, Played played = Played.Played)
     {
-        _musicOrderRepository.MarkPlayed(order, played);
+        if (!_musicOrderRepository.MarkPlayed(order, played))
+            Log.Warning("Music order was marked as {Played}, but no database row matched. Uri: {Uri}, Date: {Date:o}, Type: {Type}",
+                played, order.Uri, order.Date, order.Type);
+
         order.Played = played;
     }
 
@@ -160,8 +163,11 @@ public class MusicOrderService
     private async Task OnMusicOrdersAdd(object? sender, List<MusicOrder> e)
     {
         Log.Information("OnMusicOrdersAdd вызван.");
-        _musicOrderRepository.AddOrders(e);
-        var (orders, invalidOrders) = await GetMusicOrderWithTracks(e);
+        var addedOrders = _musicOrderRepository.AddOrders(e);
+        if (addedOrders.Count == 0)
+            return;
+
+        var (orders, invalidOrders) = await GetMusicOrderWithTracks(addedOrders);
         OrdersAdded?.Invoke(this, orders);
         if (sender is NewOrdersNotifier notifier)
         {

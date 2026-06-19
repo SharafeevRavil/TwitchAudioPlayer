@@ -40,7 +40,7 @@ public partial class VkAudioViewModel : ObservableObject
         _vkService = StaticService.Container.GetRequiredService<VkService>();
         _player = StaticService.Container.GetRequiredService<PlayerService>();
 
-        _player.Volume = 0.01;
+        _player.Volume = Math.Clamp(_userSettingsManager.Settings.VkVolume, 0, 1);
 
         _player.TrackChangedEvent += (sender, args) =>
         {

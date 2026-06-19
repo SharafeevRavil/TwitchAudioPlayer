@@ -119,7 +119,8 @@
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0" Text="Played Tracks:" FontWeight="Bold" FontSize="16" Margin="5 5"
                        Foreground="{DynamicResource MaterialDesignBody}" />
-            <ListBox Grid.Row="1" ItemsSource="{Binding PlayedTracksViewModels}" HorizontalContentAlignment="Stretch"
+            <ListBox x:Name="PlayedTracksListBox"
+                     Grid.Row="1" ItemsSource="{Binding PlayedTracksViewModels}" HorizontalContentAlignment="Stretch"
                      VerticalAlignment="Stretch"
                      VirtualizingPanel.ScrollUnit="Pixel" SelectedItem="{Binding PlayedSelectedTrack, Mode=TwoWay}">
                 <ListBox.ItemContainerStyle>

@@ -17,8 +17,23 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <views:AudioTrackControl Grid.Column="0" DataContext="{Binding AudioTrackViewModel}"
-                                 Visibility="{Binding IsFailed, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+        <Grid Grid.Column="0"
+              Visibility="{Binding IsFailed, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <views:AudioTrackControl Grid.Row="0" DataContext="{Binding AudioTrackViewModel}" />
+
+            <TextBlock Grid.Row="1"
+                       Text="{Binding PlaybackErrorMessage}"
+                       Visibility="{Binding HasPlaybackError, Converter={StaticResource BoolToVisibilityConverter}}"
+                       FontSize="11"
+                       Foreground="Crimson"
+                       Margin="86,-5,8,4"
+                       TextTrimming="CharacterEllipsis" />
+        </Grid>
         <Grid Grid.Column="0" Margin="0 2"
               Visibility="{Binding IsFailed, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid.ColumnDefinitions>

@@ -28,6 +28,8 @@ public class UserSettings
     public double MaxMinutesLength { get; set; } = 6;
     public YouTubePlaybackMode YouTubePlaybackMode { get; set; } = YouTubePlaybackMode.Browser;
     public bool UseSeparateSourceVolumes { get; set; } = true;
+    public double VkVolume { get; set; } = 0.01;
+    public double YouTubeVolume { get; set; } = 1;
     public bool BrowserPlayerTopmost { get; set; } = true;
     public WindowBoundsSettings MainWindowBounds { get; set; } = new();
     public WindowBoundsSettings BrowserPlayerWindowBounds { get; set; } = new();

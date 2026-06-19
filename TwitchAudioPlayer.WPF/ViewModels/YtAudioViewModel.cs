@@ -206,6 +206,9 @@ public partial class YtAudioViewModel : ObservableObject
 
         PlayedTracksViewModels.Add(vm);
         QueuedTracksViewModels.Remove(vm);
+        PlayedSelectedTrack = vm;
+        if (QueuedSelectedTrack == vm)
+            QueuedSelectedTrack = null;
     }
 
     private bool CanTouchButtons() => !Loading && CheckSettings();
@@ -364,6 +367,10 @@ public partial class YtAudioViewModel : ObservableObject
         if (order?.PlaylistTrack == null)
             return;
 
+        var requestedViewModel = QueuedTracksViewModels.Concat(PlayedTracksViewModels)
+            .FirstOrDefault(x => x.AudioTrack == order);
+        requestedViewModel?.ClearPlaybackError();
+
         if (_browserCurrentTrack == order.PlaylistTrack)
         {
             _isBrowserPlaying = true;
@@ -393,8 +400,7 @@ public partial class YtAudioViewModel : ObservableObject
                 trackViewModel.AudioTrackViewModel.IsPlaying = false;
 
         _browserCurrentTrack = order.PlaylistTrack;
-        _browserCurrentViewModel = QueuedTracksViewModels.Concat(PlayedTracksViewModels)
-            .FirstOrDefault(x => x.AudioTrack == order);
+        _browserCurrentViewModel = requestedViewModel;
         _isBrowserPlaying = true;
         viewModel.IsPlaying = true;
         QueuedSelectedTrack = _browserCurrentViewModel;
@@ -427,8 +433,21 @@ public partial class YtAudioViewModel : ObservableObject
     public async Task BrowserPlaybackFailedAsync(string message)
     {
         BrowserPlayerStatusText = message;
+        if (_browserCurrentViewModel != null)
+            _browserCurrentViewModel.SetPlaybackError(message);
+
+        if (_browserCurrentTrack != null)
+            MarkTrackAsPlayed(_browserCurrentTrack);
+
         _browserPlayer.Stop();
         ClearBrowserCurrentTrack();
+
+        var nextViewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
+        if (nextViewModel?.AudioTrackViewModel != null)
+        {
+            await PlayBrowserTrackAsync(nextViewModel.AudioTrackViewModel);
+            return;
+        }
 
         if (_interceptedState != null)
         {

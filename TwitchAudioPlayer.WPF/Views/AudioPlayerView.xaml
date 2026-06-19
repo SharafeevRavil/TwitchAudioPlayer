@@ -73,23 +73,25 @@
                 <!--Когда не замьючено-->
                 <Button Visibility="{Binding IsMuted, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                         Command="{Binding MuteCommand}" Width="40" Height="40" Margin="5,0"
+                        Background="{Binding VolumeAccentBrush}"
                         Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
-                    <materialDesign:PackIcon Kind="{Binding VolumeIcon}"
-                                             Foreground="{Binding VolumeAccentBrush}" />
+                    <materialDesign:PackIcon Kind="{Binding VolumeIcon}" />
                 </Button>
                 <Slider Visibility="{Binding IsMuted, Converter={StaticResource InverseBoolToVisibilityConverter}}"
-                        VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding VolumeSliderPosition, Mode=TwoWay}"
+                        VerticalAlignment="Center" Minimum="0" Maximum="1"
+                        Value="{Binding VolumeSliderPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         Foreground="{Binding VolumeAccentBrush}"
                         Width="250" Margin="5 0 10 0" />
                 <!--Когда замьючено-->
                 <Button Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibilityConverter}}"
                         Command="{Binding MuteCommand}" Width="40" Height="40" Margin="5,0"
+                        Background="{Binding VolumeAccentBrush}"
                         Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
-                    <materialDesign:PackIcon Kind="VolumeMute"
-                                             Foreground="{Binding VolumeAccentBrush}" />
+                    <materialDesign:PackIcon Kind="VolumeMute" />
                 </Button>
                 <Slider Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibilityConverter}}"
-                        VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding Volume2, Mode=TwoWay}"
+                        VerticalAlignment="Center" Minimum="0" Maximum="1"
+                        Value="{Binding Volume2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         Foreground="{Binding VolumeAccentBrush}"
                         Width="250" Margin="5 0 10 0" />
             </StackPanel>

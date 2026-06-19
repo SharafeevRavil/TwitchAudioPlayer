@@ -241,9 +241,9 @@
                                 Width="40"
                                 Height="40"
                                 Margin="0,0,8,0"
+                                Background="{Binding VolumeAccentBrush}"
                                 Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
-                            <materialDesign:PackIcon Kind="{Binding VolumeIcon}"
-                                                     Foreground="{Binding VolumeAccentBrush}" />
+                            <materialDesign:PackIcon Kind="{Binding VolumeIcon}" />
                         </Button>
                         <Slider Minimum="0"
                                 Maximum="1"

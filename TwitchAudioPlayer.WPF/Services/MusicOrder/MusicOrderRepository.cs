@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Collections.Generic;
 using System;
+using System.Globalization;
 
 namespace TwitchAudioPlayer.WPF.Services.MusicOrder
 {
@@ -33,29 +34,38 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder
         }
 
 
-        public void AddOrders(List<MusicOrder> orders)
+        public List<MusicOrder> AddOrders(List<MusicOrder> orders)
         {
             // пихуй, все равно много не будет
-            foreach (var order in orders) AddOrder(order);
+            var addedOrders = new List<MusicOrder>();
+            foreach (var order in orders)
+            {
+                if (AddOrder(order))
+                    addedOrders.Add(order);
+            }
+
+            return addedOrders;
         }
 
-        public void AddOrder(MusicOrder order)
+        public bool AddOrder(MusicOrder order)
         {
             using var connection = new SQLiteConnection(_connectionString);
             connection.Open();
+            if (OrderExists(connection, order))
+                return false;
 
             const string insertQuery = @"
-        INSERT INTO MusicOrders (Uri, Date, Type, Played, IsActive) 
+        INSERT INTO MusicOrders (Uri, Date, Type, Played, IsActive)
         VALUES (@Uri, @Date, @Type, @Played, @IsActive)
         ON CONFLICT(Uri, Date, Type) DO NOTHING";
 
             using var command = new SQLiteCommand(insertQuery, connection);
             command.Parameters.AddWithValue("@Uri", order.Uri);
-            command.Parameters.AddWithValue("@Date", order.Date.ToString("o"));
+            command.Parameters.AddWithValue("@Date", ToStorageDate(order.Date));
             command.Parameters.AddWithValue("@Type", (int)order.Type);
             command.Parameters.AddWithValue("@Played", (int)order.Played);
             command.Parameters.AddWithValue("@IsActive", true);
-            command.ExecuteNonQuery();
+            return command.ExecuteNonQuery() > 0;
         }
 
 
@@ -79,7 +89,7 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder
             connection.Open();
             const string updateQuery = "UPDATE MusicOrders SET IsActive = 0 WHERE Date < @Date AND Played = @Played";
             using var command = new SQLiteCommand(updateQuery, connection);
-            command.Parameters.AddWithValue("@Date", date.ToString("o"));
+            command.Parameters.AddWithValue("@Date", ToStorageDate(date));
             command.Parameters.AddWithValue("@Played", (int)played);
             command.ExecuteNonQuery();
         }
@@ -97,20 +107,26 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder
             using var command = new SQLiteCommand(updateQuery, connection);
             command.Parameters.AddWithValue("@NotPlayed", (int)Played.NotPlayed);
             command.Parameters.AddWithValue("@Invalid", (int)Played.Invalid);
-            command.Parameters.AddWithValue("@Date", since.ToString("o"));
+            command.Parameters.AddWithValue("@Date", ToStorageDate(since));
             return command.ExecuteNonQuery();
         }
         
-        public void MarkPlayed(MusicOrder order, Played played)
+        public bool MarkPlayed(MusicOrder order, Played played)
         {
             using var connection = new SQLiteConnection(_connectionString);
             connection.Open();
-            var updateQuery = $"UPDATE MusicOrders SET Played = {(int)played} WHERE Uri = @Uri AND Date = @Date AND Type = @Type";
+            var updateQuery = $@"
+        UPDATE MusicOrders
+        SET Played = {(int)played}
+        WHERE Uri = @Uri
+          AND Type = @Type
+          AND (Date = @Date OR Date = @RoundTripDate)";
             using var command = new SQLiteCommand(updateQuery, connection);
             command.Parameters.AddWithValue("@Uri", order.Uri);
-            command.Parameters.AddWithValue("@Date", order.Date.ToString("o"));
+            command.Parameters.AddWithValue("@Date", ToStorageDate(order.Date));
+            command.Parameters.AddWithValue("@RoundTripDate", ToRoundTripDate(order.Date));
             command.Parameters.AddWithValue("@Type", (int)order.Type);
-            command.ExecuteNonQuery();
+            return command.ExecuteNonQuery() > 0;
         }
 
         public MusicOrder? GetLastOrder(OrderType type)
@@ -128,9 +144,33 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder
         private static MusicOrder CreateOrder(SQLiteDataReader reader) =>
             new(
                 reader["Uri"].ToString(),
-                DateTimeOffset.Parse(reader["Date"].ToString()),
+                DateTimeOffset.Parse(reader["Date"].ToString(), CultureInfo.InvariantCulture),
                 Enum.Parse<OrderType>(reader["Type"].ToString()),
                 Enum.Parse<Played>(reader["Played"].ToString())
             );
+
+        private static bool OrderExists(SQLiteConnection connection, MusicOrder order)
+        {
+            const string selectQuery = @"
+        SELECT 1
+        FROM MusicOrders
+        WHERE Uri = @Uri
+          AND Type = @Type
+          AND (Date = @Date OR Date = @RoundTripDate)
+        LIMIT 1";
+
+            using var command = new SQLiteCommand(selectQuery, connection);
+            command.Parameters.AddWithValue("@Uri", order.Uri);
+            command.Parameters.AddWithValue("@Date", ToStorageDate(order.Date));
+            command.Parameters.AddWithValue("@RoundTripDate", ToRoundTripDate(order.Date));
+            command.Parameters.AddWithValue("@Type", (int)order.Type);
+            return command.ExecuteScalar() != null;
+        }
+
+        private static string ToStorageDate(DateTimeOffset date) =>
+            date.ToString("yyyy-MM-ddTHH:mm:ss.FFFFFFFzzz", CultureInfo.InvariantCulture);
+
+        private static string ToRoundTripDate(DateTimeOffset date) =>
+            date.ToString("o", CultureInfo.InvariantCulture);
     }
 }
