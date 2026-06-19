@@ -495,15 +495,16 @@ public partial class BrowserPlayerWindow : Window
     {
         TrackTitleTranslateTransform.BeginAnimation(TranslateTransform.XProperty, null);
         TrackTitleTranslateTransform.X = 0;
+        TrackTitleTextBlock.ClearValue(WidthProperty);
 
-        if (TrackTitleTextBlock.Parent is not FrameworkElement titleContainer)
-            return;
+        TrackTitleTextBlock.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
-        var availableWidth = titleContainer.ActualWidth;
-        var textWidth = TrackTitleTextBlock.ActualWidth;
+        var availableWidth = TrackTitleViewport.ActualWidth;
+        var textWidth = TrackTitleTextBlock.DesiredSize.Width;
         if (availableWidth <= 0 || textWidth <= availableWidth + 1)
             return;
 
+        TrackTitleTextBlock.Width = textWidth;
         var distance = textWidth - availableWidth + 64;
         var hold = TimeSpan.FromSeconds(1.4);
         var travel = TimeSpan.FromSeconds(Math.Clamp(distance / 42d, 5, 18));

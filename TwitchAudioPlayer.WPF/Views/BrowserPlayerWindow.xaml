@@ -128,8 +128,12 @@
                     Background="#FF262626"
                     Padding="18,8"
                     ClipToBounds="True">
-                <Grid ClipToBounds="True">
+                <Canvas x:Name="TrackTitleViewport"
+                        ClipToBounds="True"
+                        Height="{Binding ElementName=TrackTitleTextBlock, Path=ActualHeight}">
                     <TextBlock x:Name="TrackTitleTextBlock"
+                               Canvas.Left="0"
+                               Canvas.Top="0"
                                Text="{Binding OverlayTitle}"
                                Foreground="White"
                                FontWeight="SemiBold"
@@ -139,7 +143,7 @@
                             <TranslateTransform x:Name="TrackTitleTranslateTransform" />
                         </TextBlock.RenderTransform>
                     </TextBlock>
-                </Grid>
+                </Canvas>
             </Border>
 
             <Grid x:Name="ControlsPanel"
