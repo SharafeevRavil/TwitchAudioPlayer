@@ -54,6 +54,7 @@ public class UserSettingsManager : IUserSettingsManager
 {
     private readonly string _filePath;
     private readonly JsonSerializerOptions _jsonSerializerOptions;
+    private readonly object _saveLock = new();
 
     public UserSettingsManager(string filePath)
     {
@@ -66,17 +67,25 @@ public class UserSettingsManager : IUserSettingsManager
 
     public UserSettings Settings { get; }
 
-    // похуй на потокобезопасность, в 99% случаев не пригодится
     public async Task SaveSettingsAsync()
     {
-        await Task.Run(() =>
+        await Task.Run(WriteSettingsFile);
+        SettingsChanged?.Invoke(this, Settings);
+    }
+
+    public Task SaveSettingsSilentlyAsync() => Task.Run(WriteSettingsFile);
+
+    public void SaveSettingsSilently() => WriteSettingsFile();
+
+    private void WriteSettingsFile()
+    {
+        lock (_saveLock)
         {
             var json = JsonSerializer.Serialize(Settings, _jsonSerializerOptions);
 
             EnsureDirectoryExists(_filePath);
             File.WriteAllText(_filePath, json);
-            SettingsChanged?.Invoke(this, Settings);
-        });
+        }
     }
 
     private UserSettings LoadSettingsInternal()
@@ -101,4 +110,6 @@ public interface IUserSettingsManager
     public event EventHandler<UserSettings>? SettingsChanged;
 
     Task SaveSettingsAsync();
+    Task SaveSettingsSilentlyAsync();
+    void SaveSettingsSilently();
 }

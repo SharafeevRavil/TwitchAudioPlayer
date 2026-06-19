@@ -49,7 +49,7 @@ public static class WindowBoundsHelper
         {
             saveTimer.Stop();
             Capture(window, bounds);
-            await userSettingsManager.SaveSettingsAsync();
+            await userSettingsManager.SaveSettingsSilentlyAsync();
         };
 
         void ScheduleSave(object? sender, EventArgs e)
@@ -68,7 +68,7 @@ public static class WindowBoundsHelper
         {
             saveTimer.Stop();
             Capture(window, bounds);
-            userSettingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
+            userSettingsManager.SaveSettingsSilently();
         };
     }
 
