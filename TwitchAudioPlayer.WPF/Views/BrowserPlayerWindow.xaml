@@ -15,7 +15,7 @@
         ResizeMode="CanResizeWithGrip"
         AllowsTransparency="True"
         ShowActivated="False"
-        ShowInTaskbar="True"
+        ShowInTaskbar="False"
         Background="Transparent"
         Topmost="{Binding IsPinned}"
         d:DataContext="{d:DesignInstance Type=viewModels:BrowserPlayerViewModel, IsDesignTimeCreatable=True}"

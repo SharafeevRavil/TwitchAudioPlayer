@@ -22,6 +22,20 @@ public static class WindowBoundsHelper
             window.WindowState = WindowState.Maximized;
     }
 
+    public static void CenterOver(Window window, WindowBoundsSettings bounds)
+    {
+        if (!TryCreateRect(bounds, out var ownerRect) || !IntersectsVirtualScreen(ownerRect))
+            return;
+
+        var width = GetStartupDimension(window.Width, window.MinWidth);
+        var height = GetStartupDimension(window.Height, window.MinHeight);
+        var virtualScreen = GetVirtualScreen();
+
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = Clamp(ownerRect.Left + (ownerRect.Width - width) / 2, virtualScreen.Left, virtualScreen.Right - width);
+        window.Top = Clamp(ownerRect.Top + (ownerRect.Height - height) / 2, virtualScreen.Top, virtualScreen.Bottom - height);
+    }
+
     public static void Capture(Window window, WindowBoundsSettings bounds)
     {
         var rect = window.WindowState == WindowState.Normal
@@ -93,12 +107,21 @@ public static class WindowBoundsHelper
 
     private static bool IntersectsVirtualScreen(Rect rect)
     {
-        var virtualScreen = new Rect(
+        var virtualScreen = GetVirtualScreen();
+
+        return virtualScreen.IntersectsWith(rect);
+    }
+
+    private static Rect GetVirtualScreen() =>
+        new(
             SystemParameters.VirtualScreenLeft,
             SystemParameters.VirtualScreenTop,
             SystemParameters.VirtualScreenWidth,
             SystemParameters.VirtualScreenHeight);
 
-        return virtualScreen.IntersectsWith(rect);
-    }
+    private static double GetStartupDimension(double requested, double minimum) =>
+        double.IsNaN(requested) || requested <= 0 ? minimum : Math.Max(requested, minimum);
+
+    private static double Clamp(double value, double min, double max) =>
+        max < min ? min : Math.Min(Math.Max(value, min), max);
 }

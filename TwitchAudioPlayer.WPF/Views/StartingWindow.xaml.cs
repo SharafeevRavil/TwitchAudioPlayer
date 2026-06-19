@@ -6,6 +6,7 @@ using NLog;
 using TwitchAudioPlayer.WPF.MusicX.Models;
 using TwitchAudioPlayer.WPF.MusicX.Services;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player;
+using TwitchAudioPlayer.WPF.Services;
 using VkNet.Abstractions;
 using VkNet.AudioBypassService.Abstractions;
 using VkNet.AudioBypassService.Models.Auth;
@@ -18,10 +19,11 @@ public partial class StartingWindow : Window
 {
     private readonly IServiceProvider _normalContainer;
 
-    public StartingWindow(IServiceProvider normalContainer)
+    public StartingWindow(IServiceProvider normalContainer, IUserSettingsManager userSettingsManager)
     {
         _normalContainer = normalContainer;
         InitializeComponent();
+        WindowBoundsHelper.CenterOver(this, userSettingsManager.Settings.MainWindowBounds);
     }
 
     // долбоебская хуйня
@@ -58,7 +60,9 @@ public partial class StartingWindow : Window
                         {
                             await vkService.SetTokenAsync(config.AccessToken);
 
-                            ActivatorUtilities.CreateInstance<MainWindow>(_normalContainer).Show();
+                            var mainWindow = ActivatorUtilities.CreateInstance<MainWindow>(_normalContainer);
+                            Application.Current.MainWindow = mainWindow;
+                            mainWindow.Show();
                             Close();
                         }
                         catch (VkApiException ex) when (ex.Message.Contains("has expired"))
