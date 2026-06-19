@@ -5,8 +5,6 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder;
 
 public sealed partial class BrowserPlayerService : ObservableObject
 {
-    private bool _isChangingFromPlayer;
-
     [ObservableProperty] private bool _isYouTubeActive;
     [ObservableProperty] private bool _isPlaying;
     [ObservableProperty] private bool _isMuted;
@@ -82,8 +80,7 @@ public sealed partial class BrowserPlayerService : ObservableObject
             return;
 
         Volume = volume;
-        if (!_isChangingFromPlayer)
-            VolumeRequested?.Invoke(this, volume);
+        VolumeRequested?.Invoke(this, volume);
     }
 
     public void SetMuted(bool isMuted)
@@ -92,8 +89,7 @@ public sealed partial class BrowserPlayerService : ObservableObject
             return;
 
         IsMuted = isMuted;
-        if (!_isChangingFromPlayer)
-            MuteRequested?.Invoke(this, isMuted);
+        MuteRequested?.Invoke(this, isMuted);
     }
 
     public void RequestSkip()
@@ -133,16 +129,8 @@ public sealed partial class BrowserPlayerService : ObservableObject
 
     public void ReportVolume(double volume, bool isMuted)
     {
-        _isChangingFromPlayer = true;
-        try
-        {
-            SetVolume(volume);
-            SetMuted(isMuted);
-        }
-        finally
-        {
-            _isChangingFromPlayer = false;
-        }
+        // YouTube can report transient iframe volume during startup/buffering.
+        // The app volume slider is the source of truth, so incoming values are ignored.
     }
 
     public void ReportEnded()

@@ -104,10 +104,8 @@ public partial class BrowserPlayerViewModel : ObservableObject
             if (_isUpdatingFromPlayer)
                 return;
 
-            if (_browserPlayer.IsYouTubeActive)
-                _browserPlayer.SetVolume(value);
-            else
-                _player.Volume = value;
+            _player.Volume = value;
+            _browserPlayer.SetVolume(value);
         }
     }
 
@@ -168,8 +166,8 @@ public partial class BrowserPlayerViewModel : ObservableObject
         var position = _browserPlayer.IsYouTubeActive ? _browserPlayer.Position : _player.Position;
         var duration = _browserPlayer.IsYouTubeActive ? _browserPlayer.Duration : _player.Duration;
         var isPlaying = _browserPlayer.IsYouTubeActive ? _browserPlayer.IsPlaying : _player.IsPlaying;
-        var volume = _browserPlayer.IsYouTubeActive ? _browserPlayer.Volume : _player.Volume;
-        var isMuted = _browserPlayer.IsYouTubeActive ? _browserPlayer.IsMuted : _player.IsMuted;
+        var volume = _player.Volume;
+        var isMuted = _player.IsMuted;
 
         _isUpdatingFromPlayer = true;
         try
@@ -324,10 +322,9 @@ public partial class BrowserPlayerViewModel : ObservableObject
     [RelayCommand]
     private void Mute()
     {
-        if (_browserPlayer.IsYouTubeActive)
-            _browserPlayer.SetMuted(!_browserPlayer.IsMuted);
-        else
-            _player.IsMuted = !_player.IsMuted;
+        var isMuted = !_player.IsMuted;
+        _player.IsMuted = isMuted;
+        _browserPlayer.SetMuted(isMuted);
     }
 
     private static string FormatTime(TimeSpan time) =>

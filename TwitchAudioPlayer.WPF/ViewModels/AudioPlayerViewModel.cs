@@ -48,14 +48,16 @@ public partial class AudioPlayerViewModel : ObservableObject
         SetSettings();
 
         _player = StaticService.Container.GetRequiredService<PlayerService>();
+        _browserPlayer.SetVolume(_player.Volume);
+        _browserPlayer.SetMuted(_player.IsMuted);
 
         SetTrack(_browserPlayer.IsYouTubeActive ? _browserPlayer.CurrentTrack : _player.CurrentTrack);
 
         OnAudioPlayerOnPlaybackPositionChanged(_browserPlayer.IsYouTubeActive ? _browserPlayer.Position : _player.Position);
-        OnAudioPlayerOnVolumeChanged(_browserPlayer.IsYouTubeActive ? _browserPlayer.Volume : _player.Volume);
+        OnAudioPlayerOnVolumeChanged(_player.Volume);
         OnAudioPlayerOnPlaybackStateChanged(_browserPlayer.IsYouTubeActive ? _browserPlayer.IsPlaying : _player.IsPlaying);
         // OnAudioPlayerOnShuffleChanged(_player.SetShuffle().ShuffleEnabled);
-        OnAudioPlayerOnMutedChanged(_browserPlayer.IsYouTubeActive ? _browserPlayer.IsMuted : _player.IsMuted);
+        OnAudioPlayerOnMutedChanged(_player.IsMuted);
 
 
         _player.TrackChangedEvent += (_, _) =>
@@ -70,8 +72,8 @@ public partial class AudioPlayerViewModel : ObservableObject
         };
         _player.VolumeChanged += (_, volume) =>
         {
-            if (!_browserPlayer.IsYouTubeActive)
-                OnAudioPlayerOnVolumeChanged(volume);
+            _browserPlayer.SetVolume(volume);
+            OnAudioPlayerOnVolumeChanged(volume);
         };
         _player.PlayStateChangedEvent += (_, _) =>
         {
@@ -81,8 +83,8 @@ public partial class AudioPlayerViewModel : ObservableObject
         // _player.ShuffleChanged += (_, shuffleEnabled) => OnAudioPlayerOnShuffleChanged(shuffleEnabled);
         _player.IsMutedChanged += (_, isMuted) =>
         {
-            if (!_browserPlayer.IsYouTubeActive)
-                OnAudioPlayerOnMutedChanged(isMuted);
+            _browserPlayer.SetMuted(isMuted);
+            OnAudioPlayerOnMutedChanged(isMuted);
         };
     }
 
@@ -152,10 +154,8 @@ public partial class AudioPlayerViewModel : ObservableObject
             value = Math.Clamp(value, 0, 1);
             SetProperty(ref _volume, value);
             SetProperty(ref _volumeSliderPosition, VolumeCurve.VolumeToSlider(value), nameof(VolumeSliderPosition));
-            if (_browserPlayer.IsYouTubeActive)
-                _browserPlayer.SetVolume(Volume);
-            else
-                _player.Volume = Volume;
+            _player.Volume = value;
+            _browserPlayer.SetVolume(value);
         }
     }
 
@@ -178,10 +178,8 @@ public partial class AudioPlayerViewModel : ObservableObject
         set
         {
             VolumeSliderPosition = value;
-            if (_browserPlayer.IsYouTubeActive)
-                _browserPlayer.SetMuted(false);
-            else
-                _player.IsMuted = false;
+            _player.IsMuted = false;
+            _browserPlayer.SetMuted(false);
         }
     }
 
@@ -229,15 +227,17 @@ public partial class AudioPlayerViewModel : ObservableObject
         switch (propertyName)
         {
             case nameof(BrowserPlayerService.IsYouTubeActive):
+                _browserPlayer.SetVolume(_player.Volume);
+                _browserPlayer.SetMuted(_player.IsMuted);
                 SetTrack(_browserPlayer.IsYouTubeActive ? _browserPlayer.CurrentTrack : _player.CurrentTrack);
                 OnAudioPlayerOnPlaybackPositionChanged(_browserPlayer.IsYouTubeActive
                     ? _browserPlayer.Position
                     : _player.Position);
-                OnAudioPlayerOnVolumeChanged(_browserPlayer.IsYouTubeActive ? _browserPlayer.Volume : _player.Volume);
+                OnAudioPlayerOnVolumeChanged(_player.Volume);
                 OnAudioPlayerOnPlaybackStateChanged(_browserPlayer.IsYouTubeActive
                     ? _browserPlayer.IsPlaying
                     : _player.IsPlaying);
-                OnAudioPlayerOnMutedChanged(_browserPlayer.IsYouTubeActive ? _browserPlayer.IsMuted : _player.IsMuted);
+                OnAudioPlayerOnMutedChanged(_player.IsMuted);
                 break;
             case nameof(BrowserPlayerService.CurrentTrack):
                 if (_browserPlayer.IsYouTubeActive)
@@ -250,14 +250,6 @@ public partial class AudioPlayerViewModel : ObservableObject
             case nameof(BrowserPlayerService.Duration):
                 if (_browserPlayer.IsYouTubeActive)
                     Duration = _browserPlayer.Duration;
-                break;
-            case nameof(BrowserPlayerService.Volume):
-                if (_browserPlayer.IsYouTubeActive)
-                    OnAudioPlayerOnVolumeChanged(_browserPlayer.Volume);
-                break;
-            case nameof(BrowserPlayerService.IsMuted):
-                if (_browserPlayer.IsYouTubeActive)
-                    OnAudioPlayerOnMutedChanged(_browserPlayer.IsMuted);
                 break;
             case nameof(BrowserPlayerService.IsPlaying):
                 if (_browserPlayer.IsYouTubeActive)
@@ -339,10 +331,9 @@ public partial class AudioPlayerViewModel : ObservableObject
     {
         try
         {
-            if (_browserPlayer.IsYouTubeActive)
-                _browserPlayer.SetMuted(!_browserPlayer.IsMuted);
-            else
-                _player.IsMuted = !_player.IsMuted;
+            var isMuted = !_player.IsMuted;
+            _player.IsMuted = isMuted;
+            _browserPlayer.SetMuted(isMuted);
         }
         catch (Exception e)
         {
