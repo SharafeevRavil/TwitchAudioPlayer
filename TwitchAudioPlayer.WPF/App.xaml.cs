@@ -12,7 +12,6 @@ using TwitchAudioPlayer.WPF.MusicX.Services.Stores;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.DonationAlerts;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
-using TwitchAudioPlayer.WPF.Services.Proxy;
 using TwitchAudioPlayer.WPF.Services.Twitch;
 using TwitchAudioPlayer.WPF.ViewModels;
 using TwitchAudioPlayer.WPF.ViewModels.Modals;
@@ -73,24 +72,10 @@ public partial class App : Application
         var settingsManager = new UserSettingsManager(settingsFilePath);
         services.AddSingleton<IUserSettingsManager>(settingsManager);
 
-        var proxyNodeParser = new ProxyNodeParser();
-        var xrayConfigGenerator = new XrayConfigGenerator();
-        var xrayProcessManager = new XrayProcessManager();
-        var subscriptionLoader = new SubscriptionLoader(nodeParser: proxyNodeParser);
-        var proxyHealthChecker = new ProxyHealthChecker();
-        var proxyService = new ProxyManager(settingsManager, proxyNodeParser, subscriptionLoader, xrayConfigGenerator,
-            xrayProcessManager, proxyHealthChecker);
-
         services.AddTransient<IWindowService, WindowService>();
         services.AddSingleton<BrowserPlayerService>();
         services.AddSingleton<BrowserPlayerWindowService>();
         services.AddTransient<MusicOrderRepository>();
-        services.AddSingleton(proxyNodeParser);
-        services.AddSingleton(subscriptionLoader);
-        services.AddSingleton(xrayConfigGenerator);
-        services.AddSingleton(xrayProcessManager);
-        services.AddSingleton(proxyHealthChecker);
-        services.AddSingleton<IProxyService>(proxyService);
         
         services.AddSingleton<DonationAlertsService>();
         services.AddTransient<DonationAlertsOrdersNotifier>();
@@ -125,14 +110,14 @@ public partial class App : Application
         services.AddTransient<YtSettingsView>();
         services.AddTransient<HotkeySettingsView>();
 
-        InitMusicX(proxyService);
+        InitMusicX();
         
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<App>>();
         logger.LogInformation("Приложение запущено");
     }
 
-    private static void InitMusicX(IProxyService proxyService)
+    private static void InitMusicX()
     {
         var collection = new ServiceCollection();
 
@@ -153,7 +138,6 @@ public partial class App : Application
 
         collection.AddSingleton<ITrackMediaSource, BoomMediaSource>();
         collection.AddSingleton<ITrackMediaSource, VkMediaSource>();
-        collection.AddSingleton<IProxyService>(proxyService);
 
         // collection.AddSingleton<ITrackStatsListener, VkTrackStats>();
 
@@ -164,16 +148,11 @@ public partial class App : Application
         collection.AddSingleton(
             s => new BackendConnectionService(s.GetRequiredService<Logger>(), StaticService.Version));
 
-        var container = StaticService.Container = collection.BuildServiceProvider();
+        StaticService.Container = collection.BuildServiceProvider();
     }
 
     protected override void OnExit(ExitEventArgs exitEventArgs)
     {
-        _serviceProvider.GetService<IProxyService>()?
-            .StopAsync(CancellationToken.None)
-            .GetAwaiter()
-            .GetResult();
-
         if (StaticService.Container is IDisposable musicXContainer)
             musicXContainer.Dispose();
 

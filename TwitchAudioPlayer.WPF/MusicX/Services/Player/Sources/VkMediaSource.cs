@@ -2,19 +2,15 @@
 using FFMediaToolkit.Decoding;
 using MusicX.Shared.Player;
 using NLog;
-using TwitchAudioPlayer.WPF.Services.MusicOrder;
-using TwitchAudioPlayer.WPF.Services.Proxy;
 
 namespace TwitchAudioPlayer.WPF.MusicX.Services.Player.Sources;
 
 public class VkMediaSource : MediaSourceBase
 {
-    private readonly IProxyService _proxyService;
     private readonly Logger _logger;
 
-    public VkMediaSource(IProxyService proxyService, Logger logger)
+    public VkMediaSource(Logger logger)
     {
-        _proxyService = proxyService;
         _logger = logger;
     }
 
@@ -23,14 +19,9 @@ public class VkMediaSource : MediaSourceBase
     {
         if (track.Data is not VkTrackData { Url.Length: > 0 } vkData) return false;
 
-        var httpProxyUri = vkData is YtTrackData
-            ? await _proxyService.EnsureProxyAsync(cancellationToken)
-            : null;
-
         try
         {
-            var rtMediaSource = await CreateWinRtMediaSource(vkData, httpProxyUri: httpProxyUri,
-                cancellationToken: cancellationToken);
+            var rtMediaSource = await CreateWinRtMediaSource(vkData, cancellationToken: cancellationToken);
 
             await rtMediaSource.OpenWithMediaPlayerAsync(player).AsTask(cancellationToken);
 
@@ -47,7 +38,7 @@ public class VkMediaSource : MediaSourceBase
             // i think its better to use task.run over task.yield because we aren't doing async with ffmpeg
             var playbackItem = await Task.Run(() =>
             {
-                var file = MediaFile.Open(vkData.Url, CreateMediaOptions(httpProxyUri));
+                var file = MediaFile.Open(vkData.Url, CreateMediaOptions());
 
                 return CreateMediaPlaybackItem(file);
             }, cancellationToken);

@@ -32,6 +32,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
     [ObservableProperty] private bool _isArtworkVisible;
     [ObservableProperty] private bool _hasVideoContent;
     [ObservableProperty] private string _headerText = "";
+    [ObservableProperty] private string _overlayTitle = "";
     [ObservableProperty] private string _currentCoverUrl = "pack://application:,,,/Assets/default.png";
     [ObservableProperty] private string _currentTitle = "";
     [ObservableProperty] private string _currentArtist = "";
@@ -150,7 +151,8 @@ public partial class BrowserPlayerViewModel : ObservableObject
             CurrentCoverUrl = coverUrl;
             CurrentTitle = track.Title;
             CurrentArtist = track.GetArtistsString();
-            HeaderText = $"{CurrentTitle} - {CurrentArtist}";
+            OverlayTitle = FormatTrackTitle(CurrentTitle, CurrentArtist);
+            HeaderText = OverlayTitle;
             ArtworkCoverUrl = coverUrl;
             ArtworkTitle = track.Title;
             ArtworkArtist = track.GetArtistsString();
@@ -237,6 +239,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
         CurrentTitle = "";
         CurrentArtist = "";
         HeaderText = "";
+        OverlayTitle = "";
         ArtworkCoverUrl = "pack://application:,,,/Assets/default.png";
         ArtworkTitle = "";
         ArtworkArtist = "";
@@ -331,4 +334,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
         time.TotalHours >= 1
             ? time.ToString(@"h\:mm\:ss")
             : time.ToString(@"m\:ss");
+
+    private static string FormatTrackTitle(string title, string artist) =>
+        string.IsNullOrWhiteSpace(artist) ? title : $"{title} - {artist}";
 }

@@ -15,6 +15,7 @@
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
             <converters:AudioDurationTimeSpanConverter x:Key="AudioDurationTimeSpanConverter" />
             <converters:AudioDurationSecondsConverter x:Key="AudioDurationSecondsConverter" />
+            <converters:VideoTitleFontSizeConverter x:Key="VideoTitleFontSizeConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

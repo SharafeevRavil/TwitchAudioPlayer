@@ -87,7 +87,8 @@
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1"
+            <Grid x:Name="VideoSurface"
+                  Grid.Row="1"
                   Background="Transparent">
                 <Grid Visibility="{Binding HasVideoContent, Converter={StaticResource BoolToVisibilityConverter}}"
                       Background="Black">
@@ -131,6 +132,25 @@
                     <wv2:WebView2 x:Name="YoutubeWebView"
                                   IsHitTestVisible="False"
                                   Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                    <Border x:Name="TrackTitleOverlay"
+                            VerticalAlignment="Bottom"
+                            Background="#B0000000"
+                            Padding="18,8"
+                            ClipToBounds="True">
+                        <Grid ClipToBounds="True">
+                            <TextBlock x:Name="TrackTitleTextBlock"
+                                       Text="{Binding OverlayTitle}"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="NoWrap"
+                                       FontSize="{Binding ElementName=VideoSurface, Path=ActualHeight, Converter={StaticResource VideoTitleFontSizeConverter}}">
+                                <TextBlock.RenderTransform>
+                                    <TranslateTransform x:Name="TrackTitleTranslateTransform" />
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Grid>
 

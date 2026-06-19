@@ -185,8 +185,8 @@ public class MusicOrderService
             null => null,
             YtTrackError.YtNotFound => "YouTube video is unavailable.",
             YtTrackError.TrackZeroDuration => "Live streams and zero-duration videos are not supported.",
-            YtTrackError.FailedToGetInfo => "Could not load YouTube video info. Check proxy and retry.",
-            YtTrackError.FailedToGetStream => "Could not load YouTube audio stream. Check proxy and retry.",
+            YtTrackError.FailedToGetInfo => "Could not load YouTube video info. Retry later.",
+            YtTrackError.FailedToGetStream => "Could not load YouTube audio stream. Retry later.",
             _ => "Could not load YouTube track."
         };
 }

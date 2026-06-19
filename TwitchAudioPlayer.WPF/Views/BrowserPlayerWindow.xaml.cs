@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Microsoft.Web.WebView2.Core;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using TwitchAudioPlayer.WPF.ViewModels;
@@ -121,6 +123,14 @@ public partial class BrowserPlayerWindow : Window
         _viewModel.PinChanged += (_, value) => Topmost = value;
         _viewModel.MinimizeRequested += (_, _) => WindowState = WindowState.Minimized;
         _viewModel.FullScreenRequested += (_, _) => ToggleFullScreen();
+        _viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(BrowserPlayerViewModel.OverlayTitle))
+                Dispatcher.BeginInvoke(RestartTitleMarquee);
+        };
+        TrackTitleTextBlock.Loaded += (_, _) => RestartTitleMarquee();
+        TrackTitleTextBlock.SizeChanged += (_, _) => RestartTitleMarquee();
+        TrackTitleOverlay.SizeChanged += (_, _) => RestartTitleMarquee();
         _browserPlayer.LoadRequested += BrowserPlayerOnLoadRequested;
         _browserPlayer.PlayRequested += BrowserPlayerOnPlayRequested;
         _browserPlayer.PauseRequested += BrowserPlayerOnPauseRequested;
@@ -440,6 +450,38 @@ public partial class BrowserPlayerWindow : Window
         WindowState = WindowState == WindowState.Maximized
             ? WindowState.Normal
             : WindowState.Maximized;
+    }
+
+    private void RestartTitleMarquee()
+    {
+        TrackTitleTranslateTransform.BeginAnimation(TranslateTransform.XProperty, null);
+        TrackTitleTranslateTransform.X = 0;
+
+        if (TrackTitleTextBlock.Parent is not FrameworkElement titleContainer)
+            return;
+
+        var availableWidth = titleContainer.ActualWidth;
+        var textWidth = TrackTitleTextBlock.ActualWidth;
+        if (availableWidth <= 0 || textWidth <= availableWidth + 1)
+            return;
+
+        var distance = textWidth - availableWidth + 64;
+        var hold = TimeSpan.FromSeconds(1.4);
+        var travel = TimeSpan.FromSeconds(Math.Clamp(distance / 42d, 5, 18));
+        var resetHold = TimeSpan.FromSeconds(0.8);
+        var total = hold + travel + resetHold;
+
+        var animation = new DoubleAnimationUsingKeyFrames
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        animation.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(hold)));
+        animation.KeyFrames.Add(new LinearDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(hold + travel)));
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(total)));
+
+        TrackTitleTranslateTransform.BeginAnimation(TranslateTransform.XProperty, animation);
     }
 
     private static string GetPlayerPageFolder() =>

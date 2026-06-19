@@ -1,9 +1,6 @@
-using System.Net;
-using System.Net.Http;
 using MusicX.Shared.Player;
 using Serilog;
 using TwitchAudioPlayer.WPF.Services;
-using TwitchAudioPlayer.WPF.Services.Proxy;
 using YoutubeExplode;
 using YoutubeExplode.Exceptions;
 using YoutubeExplode.Videos;
@@ -32,20 +29,16 @@ public record YtTrackData(
     string? MainColor) : VkTrackData(Url, IsLiked, IsExplicit, HasLyrics, Duration, Info, TrackCode, ParentBlockId,
     Playlist, MainColor);
 
-public class YouTubeService : IDisposable
+public class YouTubeService
 {
     private static readonly SemaphoreSlim Semaphore = new(5);
     private readonly ILogger _logger = Log.ForContext<YouTubeService>();
-    private readonly IProxyService _proxyService;
     private readonly IUserSettingsManager _settingsManager;
     private readonly Random _random = new();
-    private HttpClient? _httpClient;
-    private YoutubeClient? _youtube;
-    private Uri? _youtubeProxyUri;
+    private readonly YoutubeClient _youtube = new();
 
-    public YouTubeService(IProxyService proxyService, IUserSettingsManager settingsManager)
+    public YouTubeService(IUserSettingsManager settingsManager)
     {
-        _proxyService = proxyService;
         _settingsManager = settingsManager;
     }
 
@@ -116,11 +109,6 @@ public class YouTubeService : IDisposable
         return null;
     }
 
-    public void Dispose()
-    {
-        _httpClient?.Dispose();
-    }
-
     private IdInfo GetFakeId() => new(NextLong(_random), NextLong(_random), Guid.NewGuid().ToString());
 
     private static long NextLong(Random random)
@@ -170,8 +158,7 @@ public class YouTubeService : IDisposable
     {
         try
         {
-            var youtube = await CreateYoutubeClientAsync(cancellationToken);
-            return (await youtube.Videos.GetAsync(url, cancellationToken), null);
+            return (await _youtube.Videos.GetAsync(url, cancellationToken), null);
         }
         catch (VideoUnavailableException e)
         {
@@ -190,30 +177,12 @@ public class YouTubeService : IDisposable
         }
     }
 
-    private async Task<IStreamInfo?> GetTrackStream(string url, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var (video, _) = await GetTrackInfo(url, cancellationToken);
-            if (video == null)
-                return null;
-
-            return await GetTrackStream(video, cancellationToken);
-        }
-        catch (Exception e)
-        {
-            _logger.Error(e, "Error while getting YouTube track stream");
-            return null;
-        }
-    }
-
     private async Task<IStreamInfo?> GetTrackStream(Video video, CancellationToken cancellationToken)
     {
         await Semaphore.WaitAsync(cancellationToken);
         try
         {
-            var youtube = await CreateYoutubeClientAsync(cancellationToken);
-            var streamManifest = await youtube.Videos.Streams.GetManifestAsync(video.Id, cancellationToken);
+            var streamManifest = await _youtube.Videos.Streams.GetManifestAsync(video.Id, cancellationToken);
             return streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
         }
         catch (Exception e)
@@ -225,32 +194,5 @@ public class YouTubeService : IDisposable
         {
             Semaphore.Release();
         }
-    }
-
-    private async Task<YoutubeClient> CreateYoutubeClientAsync(CancellationToken cancellationToken)
-    {
-        var proxyUri = await _proxyService.EnsureProxyAsync(cancellationToken);
-        if (_youtube is not null && Equals(_youtubeProxyUri, proxyUri))
-            return _youtube;
-
-        _httpClient?.Dispose();
-        _youtubeProxyUri = proxyUri;
-
-        if (proxyUri is null)
-        {
-            _httpClient = null;
-            _youtube = new YoutubeClient();
-            return _youtube;
-        }
-
-        var handler = new HttpClientHandler
-        {
-            UseProxy = true,
-            Proxy = new WebProxy(proxyUri)
-        };
-
-        _httpClient = new HttpClient(handler, disposeHandler: true);
-        _youtube = new YoutubeClient(_httpClient);
-        return _youtube;
     }
 }

@@ -10,7 +10,6 @@ using FFMediaToolkit.Audio;
 using FFMediaToolkit.Decoding;
 using FFmpegInteropX;
 using MusicX.Shared.Player;
-using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using WinRT;
 
 namespace TwitchAudioPlayer.WPF.MusicX.Services.Player.Sources;
@@ -158,7 +157,7 @@ public abstract class MediaSourceBase : ITrackMediaSource
     }
 
     public static Task<FFmpegMediaSource> CreateWinRtMediaSource(TrackData data,
-        IReadOnlyDictionary<string, string>? customOptions = null, Uri? httpProxyUri = null,
+        IReadOnlyDictionary<string, string>? customOptions = null,
         CancellationToken cancellationToken = default)
     {
         var options = new PropertySet();
@@ -169,11 +168,6 @@ public abstract class MediaSourceBase : ITrackMediaSource
             foreach (var (key, value) in customOptions)
                 options[key] = value;
         
-        if (data is YtTrackData && httpProxyUri is not null)
-        {
-            options["http_proxy"] = httpProxyUri.ToString();
-        }
-
         return FFmpegMediaSource.CreateFromUriAsync(data.Url, new MediaSourceConfig
         {
             FFmpegOptions = options,
@@ -186,7 +180,7 @@ public abstract class MediaSourceBase : ITrackMediaSource
         }).AsTask(cancellationToken);
     }
 
-    protected static MediaOptions CreateMediaOptions(Uri? httpProxyUri = null)
+    protected static MediaOptions CreateMediaOptions()
     {
         var options = new MediaOptions
         {
@@ -212,9 +206,6 @@ public abstract class MediaSourceBase : ITrackMediaSource
             },
             DecoderOptions = new Dictionary<string, string>(MediaOptions.DecoderOptions)
         };
-
-        if (httpProxyUri is not null)
-            options.DemuxerOptions.PrivateOptions["http_proxy"] = httpProxyUri.ToString();
 
         return options;
     }

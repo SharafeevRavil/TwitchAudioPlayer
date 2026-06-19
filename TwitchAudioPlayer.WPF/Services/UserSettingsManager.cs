@@ -2,7 +2,6 @@ using System.IO;
 using System.Text.Json;
 using System.Windows.Input;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
-using TwitchAudioPlayer.WPF.Services.Proxy;
 
 namespace TwitchAudioPlayer.WPF.Services;
 
@@ -38,8 +37,6 @@ public class UserSettings
     public long? DaAppId { get; set; }
     public string? DaAppKey { get; set; }
     public string? DaWidgetToken { get; set; }
-
-    public ProxySettings ProxySettings { get; set; } = new();
 }
 
 public class UserSettingsManager : IUserSettingsManager

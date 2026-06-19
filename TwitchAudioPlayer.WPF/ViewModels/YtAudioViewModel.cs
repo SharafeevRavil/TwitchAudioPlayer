@@ -10,7 +10,6 @@ using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
-using TwitchAudioPlayer.WPF.Services.Proxy;
 
 namespace TwitchAudioPlayer.WPF.ViewModels;
 
@@ -19,7 +18,6 @@ public partial class YtAudioViewModel : ObservableObject
     private readonly IUserSettingsManager _userSettingsManager;
     private readonly MusicOrderService _musicOrderService;
     private readonly IWindowService _windowService;
-    private readonly IProxyService _proxyService;
     private readonly BrowserPlayerService _browserPlayer;
     private readonly PlayerService _player;
 
@@ -36,12 +34,11 @@ public partial class YtAudioViewModel : ObservableObject
     private int _browserPlaybackRequestId;
 
     public YtAudioViewModel(IWindowService windowService, IUserSettingsManager userSettingsManager,
-        MusicOrderService musicOrderService, IProxyService proxyService, BrowserPlayerService browserPlayer)
+        MusicOrderService musicOrderService, BrowserPlayerService browserPlayer)
     {
         _windowService = windowService;
         _userSettingsManager = userSettingsManager;
         _musicOrderService = musicOrderService;
-        _proxyService = proxyService;
         _browserPlayer = browserPlayer;
 
         var dispatcher = Dispatcher.CurrentDispatcher;
@@ -60,13 +57,6 @@ public partial class YtAudioViewModel : ObservableObject
             await Task.Delay(500);
             TwitchColor = "Green";
         });
-        _proxyService.StatusChanged += (_, status) => dispatcher.Invoke(async () =>
-        {
-            UpdateProxyStatus(status);
-            if (status.Status is ProxyRuntimeStatus.Running or ProxyRuntimeStatus.Disabled)
-                await RetryFailedTracksAsync();
-        });
-        UpdateProxyStatus(_proxyService.CurrentStatus);
         _musicOrderService.OrdersAdded += (_, e) => dispatcher.Invoke(async () => await OnOrdersAdded(e));
         _browserPlayer.PlaybackEnded += (_, _) => dispatcher.Invoke(async () => await BrowserPlaybackEndedAsync());
         _browserPlayer.PlaybackFailed += (_, message) =>
@@ -103,11 +93,8 @@ public partial class YtAudioViewModel : ObservableObject
 
     [ObservableProperty] private bool _twitchEnabled;
     [ObservableProperty] private bool _daEnabled;
-    [ObservableProperty] private bool _proxyEnabled;
     [ObservableProperty] private string _twitchColor = "Green";
     [ObservableProperty] private string _daColor = "Green";
-    [ObservableProperty] private string _proxyColor = "Crimson";
-    [ObservableProperty] private string _proxyStatusText = "Proxy disabled";
 
     [ObservableProperty] private bool _isBrowserPlaybackMode;
     [ObservableProperty] private string _browserPlayerStatusText = "YouTube browser player is starting...";
@@ -225,8 +212,6 @@ public partial class YtAudioViewModel : ObservableObject
         try
         {
             if (!CheckSettings()) return;
-
-            await _proxyService.EnsureProxyAsync();
 
             _musicOrderService.EnsureOldTracksDisabled();
             var orders = await _musicOrderService.GetTracks();
@@ -558,29 +543,6 @@ public partial class YtAudioViewModel : ObservableObject
             TrackLoadingGridLength = new GridLength(3, GridUnitType.Star);
             TrackLoadingGridLength2 = new GridLength(0);
         }
-    }
-
-    private void UpdateProxyStatus(ProxyStatusSnapshot status)
-    {
-        ProxyEnabled = status.Status is ProxyRuntimeStatus.Running or ProxyRuntimeStatus.Checking or ProxyRuntimeStatus.Starting;
-        ProxyColor = status.Status switch
-        {
-            ProxyRuntimeStatus.Running => "Green",
-            ProxyRuntimeStatus.Checking or ProxyRuntimeStatus.Starting => "Yellow",
-            ProxyRuntimeStatus.Error => "Crimson",
-            _ => "Crimson"
-        };
-
-        ProxyStatusText = status.Status switch
-        {
-            ProxyRuntimeStatus.Disabled => "Proxy disabled",
-            ProxyRuntimeStatus.Running when status.CurrentNode is not null =>
-                $"Proxy working: {status.CurrentNode.Name}",
-            ProxyRuntimeStatus.Checking or ProxyRuntimeStatus.Starting when status.CurrentNode is not null =>
-                $"Proxy connecting: {status.CurrentNode.Name}",
-            ProxyRuntimeStatus.Error => $"Proxy failed: {status.Message}",
-            _ => status.Message
-        };
     }
 
     private static string? TryExtractYouTubeId(string uri)

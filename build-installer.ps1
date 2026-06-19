@@ -12,6 +12,9 @@ $wpfProject = Join-Path $root "TwitchAudioPlayer.WPF\TwitchAudioPlayer.WPF.cspro
 $setupProject = Join-Path $root "TwitchAudioPlayer.Setup\TwitchAudioPlayer.Setup.wixproj"
 
 Write-Host "Publishing TwitchAudioPlayer.WPF ($Configuration)..." -ForegroundColor Cyan
+if (Test-Path $publishDir) {
+    Remove-Item -Recurse -Force -LiteralPath $publishDir
+}
 dotnet publish $wpfProject -c $Configuration -f $targetFramework -o $publishDir
 if ($LASTEXITCODE -ne 0) {
     throw "Publish failed with exit code $LASTEXITCODE."
