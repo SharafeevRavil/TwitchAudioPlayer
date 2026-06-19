@@ -5,8 +5,11 @@ namespace TwitchAudioPlayer.WPF.Services;
 
 public sealed class BrowserPlayerWindowService(BrowserPlayerWindow window)
 {
-    public void Show()
+    public void Show(Window owner)
     {
+        if (window.Owner == null && !window.IsVisible)
+            window.Owner = owner;
+
         if (!window.IsVisible)
             window.Show();
     }

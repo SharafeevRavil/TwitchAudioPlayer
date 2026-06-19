@@ -36,7 +36,7 @@ public partial class MainWindow : Window
     // долбоебская хуйня
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        _browserPlayerWindowService.Show();
+        _browserPlayerWindowService.Show(this);
     }
 
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
