@@ -94,26 +94,24 @@
                   Background="Transparent">
                 <Grid Visibility="{Binding HasVideoContent, Converter={StaticResource BoolToVisibilityConverter}}"
                       Background="Black">
-                    <Grid Visibility="{Binding IsArtworkVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <Image Source="{Binding ArtworkCoverUrl}"
-                           Stretch="UniformToFill"
-                           Opacity="0.72">
-                        <Image.Effect>
-                            <BlurEffect Radius="32" />
-                        </Image.Effect>
-                    </Image>
-                    <Rectangle Fill="#55000000" />
-                    <Grid Width="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualWidth}"
-                          Height="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualWidth}"
-                          MaxWidth="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
-                          MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Center"
-                          Margin="36">
-                        <Border Background="#22000000">
-                            <Image Source="{Binding ArtworkCoverUrl}" Stretch="UniformToFill" />
-                        </Border>
-                    </Grid>
+                    <Grid Visibility="{Binding IsArtworkVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                          ClipToBounds="True">
+                        <Image Source="{Binding ArtworkCoverUrl}"
+                               Stretch="UniformToFill"
+                               Opacity="0.72"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.Effect>
+                                <BlurEffect Radius="32" />
+                            </Image.Effect>
+                        </Image>
+                        <Rectangle Fill="#66000000" />
+                        <Grid Margin="36">
+                            <Image Source="{Binding ArtworkCoverUrl}"
+                                   Stretch="Uniform"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Stretch"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Grid>
                     </Grid>
 
                     <wv2:WebView2 x:Name="YoutubeWebView"
