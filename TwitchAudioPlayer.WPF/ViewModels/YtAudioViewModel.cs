@@ -141,6 +141,8 @@ public partial class YtAudioViewModel : ObservableObject
 
     private async Task OnPlayerTrackChangedAsync(PlaylistTrack? track)
     {
+        StopBrowserPlaybackForNativeTrack(track);
+
         if (_currentTrack != null) MarkTrackAsPlayed(_currentTrack);
         _currentTrack = track;
 
@@ -180,6 +182,16 @@ public partial class YtAudioViewModel : ObservableObject
 
             await _player.RestoreFromStateAsync(_interceptedState);
         }
+    }
+
+    private void StopBrowserPlaybackForNativeTrack(PlaylistTrack? track)
+    {
+        if (!_browserPlayer.IsYouTubeActive || track is null || _tracks.Any(x => x.PlaylistTrack == track))
+            return;
+
+        _browserPlayer.Stop();
+        ClearBrowserCurrentTrack();
+        _interceptedState = null;
     }
 
     private void MarkTrackAsPlayed(PlaylistTrack track)

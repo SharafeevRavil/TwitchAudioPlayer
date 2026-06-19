@@ -35,20 +35,59 @@
             background: transparent;
             cursor: default;
         }
+
+        #title-overlay {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 20;
+            box-sizing: border-box;
+            min-height: calc(clamp(18px, 4.5vh, 34px) + 16px);
+            padding: 8px 18px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.69);
+            pointer-events: none;
+        }
+
+        #title-viewport {
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        #title-text {
+            display: inline-block;
+            color: #fff;
+            font: 600 clamp(18px, 4.5vh, 34px) "Segoe UI", Arial, sans-serif;
+            line-height: 1.2;
+            white-space: nowrap;
+            will-change: transform;
+        }
+
+        #title-overlay.empty {
+            display: none;
+        }
     </style>
 </head>
 <body>
 <div id="player"></div>
 <div id="shield"></div>
+<div id="title-overlay" class="empty">
+    <div id="title-viewport">
+        <span id="title-text"></span>
+    </div>
+</div>
 <script>
     let player;
     let isReady = false;
     let pendingVideo = null;
     let currentRequestId = 0;
+    let currentTitle = "";
     let pendingVolume = null;
     let pendingMuted = null;
     let lastVolume = null;
     let lastMuted = null;
+    let titleAnimation = null;
 
     function post(type, payload) {
         if (!window.chrome || !window.chrome.webview) {
@@ -69,7 +108,7 @@
 
         const video = pendingVideo;
         pendingVideo = null;
-        loadVideo(video.videoId, video.startSeconds, video.requestId);
+        loadVideo(video.videoId, video.startSeconds, video.requestId, video.title);
     }
 
     function applyPendingAudioState() {
@@ -96,6 +135,54 @@
             }
         } catch {
         }
+    }
+
+    function setTitle(title) {
+        currentTitle = title || "";
+
+        const overlay = document.getElementById("title-overlay");
+        const text = document.getElementById("title-text");
+        if (!overlay || !text) {
+            return;
+        }
+
+        text.textContent = currentTitle;
+        overlay.classList.toggle("empty", !currentTitle);
+        restartTitleAnimation();
+    }
+
+    function restartTitleAnimation() {
+        const viewport = document.getElementById("title-viewport");
+        const text = document.getElementById("title-text");
+        if (!viewport || !text) {
+            return;
+        }
+
+        if (titleAnimation) {
+            titleAnimation.cancel();
+            titleAnimation = null;
+        }
+
+        text.style.transform = "translateX(0)";
+        const overflow = text.scrollWidth - viewport.clientWidth;
+        if (!currentTitle || overflow <= 1) {
+            return;
+        }
+
+        const distance = overflow + 64;
+        const holdMs = 1400;
+        const travelMs = Math.max(5000, Math.min(18000, distance / 42 * 1000));
+        const resetHoldMs = 800;
+        titleAnimation = text.animate([
+            { transform: "translateX(0)", offset: 0 },
+            { transform: "translateX(0)", offset: holdMs / (holdMs + travelMs + resetHoldMs) },
+            { transform: `translateX(${-distance}px)`, offset: (holdMs + travelMs) / (holdMs + travelMs + resetHoldMs) },
+            { transform: "translateX(0)", offset: 1 }
+        ], {
+            duration: holdMs + travelMs + resetHoldMs,
+            iterations: Infinity,
+            easing: "linear"
+        });
     }
 
     function onYouTubeIframeAPIReady() {
@@ -135,12 +222,13 @@
         });
     }
 
-    function loadVideo(videoId, startSeconds, requestId) {
+    function loadVideo(videoId, startSeconds, requestId, title) {
         const normalizedRequestId = Number(requestId) || 0;
         currentRequestId = normalizedRequestId;
+        setTitle(title || "");
 
         if (!isReady || !player) {
-            pendingVideo = { videoId, startSeconds: startSeconds || 0, requestId: normalizedRequestId };
+            pendingVideo = { videoId, startSeconds: startSeconds || 0, requestId: normalizedRequestId, title: title || "" };
             return;
         }
 
@@ -195,6 +283,7 @@
         stop: () => {
             pendingVideo = null;
             currentRequestId = 0;
+            setTitle("");
             if (!player) {
                 return;
             }
@@ -244,6 +333,8 @@
         postVolumeIfChanged(false);
         clearYouTubeChrome();
     }, 500);
+
+    window.addEventListener("resize", restartTitleAnimation);
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>
 </body>

@@ -112,21 +112,6 @@
                             <Image Source="{Binding ArtworkCoverUrl}" Stretch="UniformToFill" />
                         </Border>
                     </Grid>
-                    <Border VerticalAlignment="Bottom"
-                            Background="#B0000000"
-                            Padding="18,12">
-                        <StackPanel>
-                            <TextBlock Text="{Binding ArtworkTitle}"
-                                       Foreground="White"
-                                       FontSize="22"
-                                       FontWeight="Bold"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding ArtworkArtist}"
-                                       Foreground="#DDFFFFFF"
-                                       FontSize="15"
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                    </Border>
                     </Grid>
 
                     <wv2:WebView2 x:Name="YoutubeWebView"

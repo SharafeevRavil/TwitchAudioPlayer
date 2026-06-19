@@ -7,7 +7,9 @@ using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using MusicX.Shared.Player;
 using Microsoft.Web.WebView2.Core;
+using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using TwitchAudioPlayer.WPF.ViewModels;
 
@@ -105,6 +107,7 @@ public partial class BrowserPlayerWindow : Window
     private readonly BrowserPlayerService _browserPlayer;
     private readonly BrowserPlayerViewModel _viewModel;
     private TaskCompletionSource _pageLoaded = NewPageLoadedSource();
+    private Task? _webViewInitializationTask;
     private bool _webViewInitialized;
     private bool _isResizingToAspect;
     private bool _wasMinimizedWithMainWindow;
@@ -169,15 +172,27 @@ public partial class BrowserPlayerWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (_browserPlayer.IsYouTubeActive)
+        await ExecuteStartupAsync();
+    }
+
+    private async Task ExecuteStartupAsync()
+    {
+        try
+        {
             await EnsureWebViewAsync();
+        }
+        catch (Exception ex)
+        {
+            _browserPlayer.ReportFailure($"YouTube browser player failed: {ex.Message}");
+        }
     }
 
     private async void BrowserPlayerOnLoadRequested(object? sender, YouTubeBrowserPlaybackRequest e)
     {
         _activeRequestId = e.RequestId;
+        var title = FormatTrackTitle(e.Track);
         await ExecutePlayerCommandAsync(
-            $"load({JsonSerializer.Serialize(e.VideoId)}, {FormatSeconds(e.StartPosition)}, {e.RequestId})",
+            $"load({JsonSerializer.Serialize(e.VideoId)}, {FormatSeconds(e.StartPosition)}, {e.RequestId}, {JsonSerializer.Serialize(title)})",
             requestId: e.RequestId);
         await ExecutePlayerCommandAsync(
             $"setVolume({FormatNumber(_browserPlayer.Volume)})",
@@ -243,14 +258,25 @@ public partial class BrowserPlayerWindow : Window
         if (_webViewInitialized)
             return;
 
-        var userDataFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TwitchAudioPlayer",
-            "WebView2");
-        Directory.CreateDirectory(userDataFolder);
+        _webViewInitializationTask ??= InitializeWebViewAsync();
+        try
+        {
+            await _webViewInitializationTask;
+        }
+        catch
+        {
+            _webViewInitializationTask = null;
+            throw;
+        }
+    }
 
-        var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: userDataFolder);
-        await YoutubeWebView.EnsureCoreWebView2Async(environment);
+    private async Task InitializeWebViewAsync()
+    {
+        if (YoutubeWebView.CoreWebView2 is null)
+            await YoutubeWebView.EnsureCoreWebView2Async();
+
+        if (_webViewInitialized)
+            return;
 
         YoutubeWebView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
         YoutubeWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
@@ -495,6 +521,12 @@ public partial class BrowserPlayerWindow : Window
 
     private static string FormatNumber(double value) =>
         value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string FormatTrackTitle(PlaylistTrack track)
+    {
+        var artist = track.GetArtistsString();
+        return string.IsNullOrWhiteSpace(artist) ? track.Title : $"{track.Title} - {artist}";
+    }
 
     private static string GetHideYouTubeChromeScript()
     {
