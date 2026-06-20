@@ -139,9 +139,7 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
             return;
         Status = UseAnonymous
             ? "Anonymous ChatGPT opened. Project setting is ignored without an account."
-            : string.IsNullOrWhiteSpace(ProjectName)
-            ? "ChatGPT opened. The resolver will use a regular chat."
-            : $"Project “{ProjectName.Trim()}” opened. If this is the wrong page, check the exact project name.";
+            : "ChatGPT opened. Project selection is disabled for now; the resolver will use a regular chat.";
     }
 
     [RelayCommand(CanExecute = nameof(HasResolverSession))]

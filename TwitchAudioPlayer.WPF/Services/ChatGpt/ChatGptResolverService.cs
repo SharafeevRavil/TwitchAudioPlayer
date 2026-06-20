@@ -76,7 +76,7 @@ public sealed class ChatGptResolverService : IDisposable
         var account = GetActiveAccount();
         if (!settings.Enabled || account is null || candidates.Count == 0)
             return null;
-        var projectName = settings.UseAnonymous ? string.Empty : settings.ProjectName;
+        var projectName = string.Empty;
 
         var topCandidates = candidates.Take(5).ToArray();
         var cacheKey = CreateDecisionKey(account.Id, projectName, artist, title, topCandidates);
@@ -206,7 +206,7 @@ public sealed class ChatGptResolverService : IDisposable
         await _settingsManager.SaveSettingsSilentlyAsync();
         var session = GetSession(account);
         await session.ShowInteractiveAsync();
-        var effectiveProjectName = account.Id == Guid.Empty ? string.Empty : projectName;
+        var effectiveProjectName = string.Empty;
         await session.OpenProjectAsync(effectiveProjectName, CancellationToken.None);
         SetStatus(string.IsNullOrWhiteSpace(effectiveProjectName)
             ? "Opened ChatGPT"

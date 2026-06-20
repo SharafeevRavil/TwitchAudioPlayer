@@ -59,8 +59,8 @@
                 <CheckBox Content="Use ChatGPT without an account (guest/no-login mode, if ChatGPT allows it)"
                           IsChecked="{Binding UseAnonymous}" Margin="0,0,0,14" />
                 <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}"
-                         IsEnabled="{Binding IsNamedAccountMode}"
-                         materialDesign:HintAssist.Hint="Exact ChatGPT project name (optional)"
+                         IsEnabled="False"
+                         materialDesign:HintAssist.Hint="Project name (disabled for now)"
                          Margin="0,0,0,12" />
 
                 <WrapPanel Margin="0,0,0,10">
