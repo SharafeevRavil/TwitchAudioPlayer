@@ -33,6 +33,11 @@ public sealed class ChatGptResolverService : IDisposable
     private readonly IUserSettingsManager _settingsManager;
     private readonly ConcurrentDictionary<Guid, ChatGptBrowserSession> _sessions = new();
     private readonly Dictionary<string, CachedDecision> _decisionCache = new(StringComparer.Ordinal);
+    private readonly ChatGptAccountSettings _anonymousAccount = new()
+    {
+        Id = Guid.Empty,
+        Name = "No account"
+    };
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private readonly object _activeRequestLock = new();
     private readonly object _cacheLock = new();
@@ -71,9 +76,10 @@ public sealed class ChatGptResolverService : IDisposable
         var account = GetActiveAccount();
         if (!settings.Enabled || account is null || candidates.Count == 0)
             return null;
+        var projectName = settings.UseAnonymous ? string.Empty : settings.ProjectName;
 
         var topCandidates = candidates.Take(5).ToArray();
-        var cacheKey = CreateDecisionKey(account.Id, settings.ProjectName, artist, title, topCandidates);
+        var cacheKey = CreateDecisionKey(account.Id, projectName, artist, title, topCandidates);
         lock (_cacheLock)
         {
             if (_decisionCache.TryGetValue(cacheKey, out var cached) &&
@@ -110,7 +116,7 @@ public sealed class ChatGptResolverService : IDisposable
                 var prompt = BuildPrompt(requestId, artist, title, topCandidates);
                 var session = GetSession(account);
                 SetStatus($"ChatGPT is choosing a video for {artist} — {title}…");
-                var response = await session.SendAsync(prompt, requestId, settings.ProjectName,
+                var response = await session.SendAsync(prompt, requestId, projectName,
                     GetChatGptJsAsync, requestCts.Token);
                 var decision = ParseDecision(response, requestId, topCandidates);
 
@@ -200,10 +206,11 @@ public sealed class ChatGptResolverService : IDisposable
         await _settingsManager.SaveSettingsSilentlyAsync();
         var session = GetSession(account);
         await session.ShowInteractiveAsync();
-        await session.OpenProjectAsync(projectName, CancellationToken.None);
-        SetStatus(string.IsNullOrWhiteSpace(projectName)
+        var effectiveProjectName = account.Id == Guid.Empty ? string.Empty : projectName;
+        await session.OpenProjectAsync(effectiveProjectName, CancellationToken.None);
+        SetStatus(string.IsNullOrWhiteSpace(effectiveProjectName)
             ? "Opened ChatGPT"
-            : $"Opened project “{projectName}”");
+            : $"Opened project “{effectiveProjectName}”");
     }
 
     public async Task ResetConversationAsync(Guid accountId)
@@ -249,13 +256,18 @@ public sealed class ChatGptResolverService : IDisposable
     private ChatGptAccountSettings? GetActiveAccount()
     {
         var settings = _settingsManager.Settings.ChatGptResolver;
+        if (settings.UseAnonymous)
+            return _anonymousAccount;
+
         return settings.ActiveAccountId is { } id
             ? settings.Accounts.FirstOrDefault(account => account.Id == id)
             : null;
     }
 
     private ChatGptAccountSettings GetAccount(Guid accountId) =>
-        _settingsManager.Settings.ChatGptResolver.Accounts.FirstOrDefault(account => account.Id == accountId) ??
+        accountId == Guid.Empty
+            ? _anonymousAccount
+            : _settingsManager.Settings.ChatGptResolver.Accounts.FirstOrDefault(account => account.Id == accountId) ??
         throw new InvalidOperationException("ChatGPT account is no longer configured");
 
     private ChatGptBrowserSession GetSession(ChatGptAccountSettings account) =>
@@ -440,8 +452,13 @@ public sealed class ChatGptResolverService : IDisposable
                 _window.Title = $"ChatGPT — {_account.Name}";
                 _window.ShowInTaskbar = true;
                 _window.Opacity = 1;
-                _window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                _window.WindowStartupLocation = WindowStartupLocation.Manual;
+                _window.WindowState = WindowState.Normal;
+                MoveWindowToWorkAreaCenter(_window);
                 _window.Show();
+                _window.Topmost = true;
+                _window.Topmost = false;
+                _window.Focus();
                 _window.Activate();
             });
         }
@@ -864,6 +881,15 @@ public sealed class ChatGptResolverService : IDisposable
             return dispatcher.CheckAccess()
                 ? action()
                 : dispatcher.InvokeAsync(action).Task.Unwrap();
+        }
+
+        private static void MoveWindowToWorkAreaCenter(Window window)
+        {
+            var workArea = SystemParameters.WorkArea;
+            var width = double.IsNaN(window.Width) || window.Width <= 0 ? 1100 : window.Width;
+            var height = double.IsNaN(window.Height) || window.Height <= 0 ? 780 : window.Height;
+            window.Left = workArea.Left + Math.Max(0, (workArea.Width - width) / 2);
+            window.Top = workArea.Top + Math.Max(0, (workArea.Height - height) / 2);
         }
 
         private sealed record BrowserResult(bool Ok, string? Response, string? Error, string? Url);

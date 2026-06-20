@@ -49,6 +49,7 @@ public class UserSettings
 public class ChatGptResolverSettings
 {
     public bool Enabled { get; set; }
+    public bool UseAnonymous { get; set; }
     public string ProjectName { get; set; } = "TwitchAudioPlayer";
     public Guid? ActiveAccountId { get; set; }
     public List<ChatGptAccountSettings> Accounts { get; set; } = [];
