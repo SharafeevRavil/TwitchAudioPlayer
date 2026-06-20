@@ -31,7 +31,6 @@ public partial class YtAudioViewModel : ObservableObject
     private YtAudioTrackViewModel? _browserCurrentViewModel;
     private PlayerState? _interceptedState;
     private bool _isBrowserPlaying;
-    private int _browserPlaybackRequestId;
 
     public YtAudioViewModel(IWindowService windowService, IUserSettingsManager userSettingsManager,
         MusicOrderService musicOrderService, BrowserPlayerService browserPlayer)
@@ -58,12 +57,27 @@ public partial class YtAudioViewModel : ObservableObject
             TwitchColor = "Green";
         });
         _musicOrderService.OrdersAdded += (_, e) => dispatcher.Invoke(async () => await OnOrdersAdded(e));
-        _browserPlayer.PlaybackEnded += (_, _) => dispatcher.Invoke(async () => await BrowserPlaybackEndedAsync());
+        _browserPlayer.PlaybackEnded += (_, _) => dispatcher.Invoke(async () =>
+        {
+            if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.MusicOrder)
+                await BrowserPlaybackEndedAsync();
+        });
         _browserPlayer.PlaybackFailed += (_, message) =>
-            dispatcher.Invoke(async () => await BrowserPlaybackFailedAsync(message));
-        _browserPlayer.SkipRequested += (_, _) => dispatcher.Invoke(async () => await CompleteBrowserTrackAndAdvanceAsync());
+            dispatcher.Invoke(async () =>
+            {
+                if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.MusicOrder)
+                    await BrowserPlaybackFailedAsync(message);
+            });
+        _browserPlayer.SkipRequested += (_, _) => dispatcher.Invoke(async () =>
+        {
+            if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.MusicOrder)
+                await CompleteBrowserTrackAndAdvanceAsync();
+        });
         _browserPlayer.PropertyChanged += (_, e) =>
         {
+            if (_browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder)
+                return;
+
             if (e.PropertyName == nameof(BrowserPlayerService.IsPlaying))
                 dispatcher.Invoke(SyncBrowserPlayState);
             else if (e.PropertyName == nameof(BrowserPlayerService.Position))
@@ -186,10 +200,13 @@ public partial class YtAudioViewModel : ObservableObject
 
     private void StopBrowserPlaybackForNativeTrack(PlaylistTrack? track)
     {
-        if (!_browserPlayer.IsYouTubeActive || track is null || _tracks.Any(x => x.PlaylistTrack == track))
+        if (!_browserPlayer.IsYouTubeActive ||
+            _browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder ||
+            track is null || _tracks.Any(x => x.PlaylistTrack == track))
             return;
 
         _browserPlayer.Stop();
+        _player.IsPlaybackSuppressed = false;
         ClearBrowserCurrentTrack();
         _interceptedState = null;
     }
@@ -373,6 +390,7 @@ public partial class YtAudioViewModel : ObservableObject
 
         if (_browserCurrentTrack == order.PlaylistTrack)
         {
+            _player.IsPlaybackSuppressed = true;
             _isBrowserPlaying = true;
             viewModel.IsPlaying = true;
             BrowserPlayerStatusText = $"Playing in browser: {viewModel.Title}";
@@ -393,6 +411,7 @@ public partial class YtAudioViewModel : ObservableObject
         if (!ReferenceEquals(_player.CurrentPlaylist, _playlist) && _interceptedState == null)
             _interceptedState = PlayerState.CreateOrNull(_player);
 
+        _player.IsPlaybackSuppressed = true;
         _player.Pause();
 
         foreach (var trackViewModel in PlayedTracksViewModels.Concat(QueuedTracksViewModels))
@@ -416,7 +435,7 @@ public partial class YtAudioViewModel : ObservableObject
             videoId,
             TimeSpan.Zero,
             order.PlaylistTrack,
-            ++_browserPlaybackRequestId));
+            _browserPlayer.CreateRequestId()));
         await Task.CompletedTask;
     }
 
@@ -432,14 +451,17 @@ public partial class YtAudioViewModel : ObservableObject
 
     public async Task BrowserPlaybackFailedAsync(string message)
     {
+        if (_browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder)
+            return;
+
         BrowserPlayerStatusText = message;
         if (_browserCurrentViewModel != null)
             _browserCurrentViewModel.SetPlaybackError(message);
-
         if (_browserCurrentTrack != null)
             MarkTrackAsPlayed(_browserCurrentTrack);
 
         _browserPlayer.Stop();
+        _player.IsPlaybackSuppressed = false;
         ClearBrowserCurrentTrack();
 
         var nextViewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
@@ -459,7 +481,8 @@ public partial class YtAudioViewModel : ObservableObject
 
     public async Task BrowserPositionChangedAsync(TimeSpan position, TimeSpan duration)
     {
-        if (!IsBrowserPlaybackMode || !_isBrowserPlaying)
+        if (!IsBrowserPlaybackMode || !_isBrowserPlaying ||
+            _browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder)
             return;
 
         if (duration > TimeSpan.Zero)
@@ -471,12 +494,12 @@ public partial class YtAudioViewModel : ObservableObject
 
     private async Task CompleteBrowserTrackAndAdvanceAsync()
     {
-        if (!IsBrowserPlaybackMode)
+        if (!IsBrowserPlaybackMode || !_isBrowserPlaying ||
+            _browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder)
             return;
 
         if (_browserCurrentTrack != null)
             MarkTrackAsPlayed(_browserCurrentTrack);
-
         ClearBrowserCurrentTrack();
 
         var nextViewModel = QueuedTracksViewModels.FirstOrDefault(x => x.AudioTrackViewModel != null);
@@ -487,6 +510,7 @@ public partial class YtAudioViewModel : ObservableObject
         }
 
         _browserPlayer.Stop();
+        _player.IsPlaybackSuppressed = false;
         BrowserPlayerStatusText = "YouTube queue finished.";
 
         if (_interceptedState != null)
@@ -509,7 +533,8 @@ public partial class YtAudioViewModel : ObservableObject
 
     private void SyncBrowserPlayState()
     {
-        if (!IsBrowserPlaybackMode || _browserCurrentViewModel?.AudioTrackViewModel == null)
+        if (!IsBrowserPlaybackMode || _browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder ||
+            _browserCurrentViewModel?.AudioTrackViewModel == null)
             return;
 
         _isBrowserPlaying = _browserPlayer.IsPlaying;
@@ -520,12 +545,14 @@ public partial class YtAudioViewModel : ObservableObject
     {
         _maxYtMinutes = _userSettingsManager.Settings.MaxMinutesLength;
         var wasBrowserPlaybackMode = IsBrowserPlaybackMode;
-        IsBrowserPlaybackMode = _userSettingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
+        IsBrowserPlaybackMode =
+            _userSettingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
 
         if (wasBrowserPlaybackMode && !IsBrowserPlaybackMode)
         {
             ClearBrowserCurrentTrack();
             _browserPlayer.Stop();
+            _player.IsPlaybackSuppressed = false;
             BrowserPlayerStatusText = "YouTube browser playback is disabled.";
         }
 

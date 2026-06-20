@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
              xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels"
              mc:Ignorable="d"
              d:DesignHeight="100" d:DesignWidth="800"
@@ -11,6 +12,7 @@
              HorizontalAlignment="Stretch">
     <Grid Visibility="{Binding IsTrackSet, Converter={StaticResource BoolToVisibilityConverter}}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -32,7 +34,68 @@
                        Margin="5,0,5,0" />
         </Grid>
         <!-- Нижняя панель -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" Margin="10,2,10,4"
+              Visibility="{Binding VkYouTube.IsAvailable, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <CheckBox Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center"
+                      Content="Auto YouTube"
+                      IsChecked="{Binding VkYouTube.AutoPlayEnabled, Mode=TwoWay}" />
+            <ToggleButton Grid.Column="1" MinWidth="58" Padding="8,3" Content="VK"
+                          IsChecked="{Binding VkYouTube.IsVkSourceSelected, Mode=OneWay}"
+                          Command="{Binding VkYouTube.SwitchToVkCommand}" />
+            <ToggleButton Grid.Column="2" MinWidth="82" Padding="8,3" Content="YouTube"
+                          IsChecked="{Binding VkYouTube.IsYouTubeSourceSelected, Mode=OneWay}"
+                          Command="{Binding VkYouTube.SwitchToYouTubeCommand}" />
+            <ComboBox Grid.Column="3" Margin="10,0" MinHeight="32" MaxDropDownHeight="360"
+                      ItemsSource="{Binding VkYouTube.Candidates}"
+                      SelectedItem="{Binding VkYouTube.SelectedCandidate, Mode=TwoWay}"
+                      ToolTip="Choose another YouTube video">
+                <b:Interaction.Triggers>
+                    <b:EventTrigger EventName="SelectionChanged">
+                        <b:InvokeCommandAction Command="{Binding VkYouTube.SelectCandidateCommand}" />
+                    </b:EventTrigger>
+                </b:Interaction.Triggers>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Width="480" Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="72" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Image Grid.Column="0" Width="64" Height="36" Source="{Binding ThumbnailUrl}"
+                                   Stretch="UniformToFill" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ChannelTitle}" FontSize="11"
+                                           Foreground="{DynamicResource MaterialDesignBodyLight}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding MetricsText}" FontSize="11"
+                                               Foreground="{DynamicResource MaterialDesignBodyLight}" />
+                                    <TextBlock Text="  ·  " FontSize="11" />
+                                    <TextBlock Text="{Binding ConfidenceText}" FontSize="11"
+                                               Foreground="#FFFF0033" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Grid Grid.Column="4">
+                <TextBlock VerticalAlignment="Center" Text="{Binding VkYouTube.StatusText}"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource MaterialDesignBodyLight}" />
+                <ProgressBar Height="2" VerticalAlignment="Bottom" IsIndeterminate="True"
+                             Visibility="{Binding VkYouTube.IsResolving, Converter={StaticResource BoolToVisibilityConverter}}" />
+            </Grid>
+        </Grid>
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="5*" />
                 <ColumnDefinition Width="*" />

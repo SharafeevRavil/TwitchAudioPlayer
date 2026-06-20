@@ -31,6 +31,7 @@ public class UserSettings
     public double VkVolume { get; set; } = 0.01;
     public double YouTubeVolume { get; set; } = 1;
     public bool BrowserPlayerTopmost { get; set; } = true;
+    public bool AutoPlayYouTubeForVk { get; set; }
     public WindowBoundsSettings MainWindowBounds { get; set; } = new();
     public WindowBoundsSettings BrowserPlayerWindowBounds { get; set; } = new();
     //twitch

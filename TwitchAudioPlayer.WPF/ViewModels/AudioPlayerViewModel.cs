@@ -47,10 +47,14 @@ public partial class AudioPlayerViewModel : ObservableObject
     private const string VkVolumeBrush = "#FF2787F5";
     private const string YouTubeVolumeBrush = "#FFFF0033";
 
-    public AudioPlayerViewModel(IUserSettingsManager userSettingsManager, BrowserPlayerService browserPlayer)
+    public VkYouTubePlaybackService VkYouTube { get; }
+
+    public AudioPlayerViewModel(IUserSettingsManager userSettingsManager, BrowserPlayerService browserPlayer,
+        VkYouTubePlaybackService vkYouTube)
     {
         _userSettingsManager = userSettingsManager;
         _browserPlayer = browserPlayer;
+        VkYouTube = vkYouTube;
         var dispatcher = Dispatcher.CurrentDispatcher;
         _userSettingsManager.SettingsChanged += (_, _) => dispatcher.Invoke(() =>
         {

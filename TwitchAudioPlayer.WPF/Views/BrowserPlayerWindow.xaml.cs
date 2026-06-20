@@ -100,6 +100,10 @@ public partial class BrowserPlayerWindow : Window
     private const int WmszBottom = 6;
     private const int WmszBottomLeft = 7;
     private const int WmszBottomRight = 8;
+    private const int DwmwaWindowCornerPreference = 33;
+    private const int DwmwaBorderColor = 34;
+    private const uint DwmWindowCornerDoNotRound = 1;
+    private const uint DwmColorNone = 0xFFFFFFFE;
     private const double AspectRatio = 16d / 9d;
     private const int DefaultPlayerChromeHeight = 166;
 
@@ -130,14 +134,11 @@ public partial class BrowserPlayerWindow : Window
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
         SizeChanged += OnSizeChanged;
-        _viewModel.PinChanged += (_, value) => Topmost = value;
-        _viewModel.MinimizeRequested += (_, _) => WindowState = WindowState.Minimized;
-        _viewModel.FullScreenRequested += (_, _) => ToggleFullScreen();
-        _viewModel.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(BrowserPlayerViewModel.OverlayTitle))
-                Dispatcher.BeginInvoke(RestartTitleMarquee);
-        };
+        Closed += OnClosed;
+        _viewModel.PinChanged += ViewModelOnPinChanged;
+        _viewModel.MinimizeRequested += ViewModelOnMinimizeRequested;
+        _viewModel.FullScreenRequested += ViewModelOnFullScreenRequested;
+        _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
         TrackTitleTextBlock.Loaded += (_, _) => RestartTitleMarquee();
         TrackTitleTextBlock.SizeChanged += (_, _) => RestartTitleMarquee();
         TrackTitleStrip.SizeChanged += (_, _) => RestartTitleMarquee();
@@ -148,6 +149,34 @@ public partial class BrowserPlayerWindow : Window
         _browserPlayer.SeekRequested += BrowserPlayerOnSeekRequested;
         _browserPlayer.VolumeRequested += BrowserPlayerOnVolumeRequested;
         _browserPlayer.MuteRequested += BrowserPlayerOnMuteRequested;
+    }
+
+    private void ViewModelOnPinChanged(object? sender, bool value) => Topmost = value;
+
+    private void ViewModelOnMinimizeRequested(object? sender, EventArgs e) =>
+        WindowState = WindowState.Minimized;
+
+    private void ViewModelOnFullScreenRequested(object? sender, EventArgs e) => ToggleFullScreen();
+
+    private void ViewModelOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BrowserPlayerViewModel.OverlayTitle))
+            Dispatcher.BeginInvoke(RestartTitleMarquee);
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        _viewModel.PinChanged -= ViewModelOnPinChanged;
+        _viewModel.MinimizeRequested -= ViewModelOnMinimizeRequested;
+        _viewModel.FullScreenRequested -= ViewModelOnFullScreenRequested;
+        _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
+        _browserPlayer.LoadRequested -= BrowserPlayerOnLoadRequested;
+        _browserPlayer.PlayRequested -= BrowserPlayerOnPlayRequested;
+        _browserPlayer.PauseRequested -= BrowserPlayerOnPauseRequested;
+        _browserPlayer.StopRequested -= BrowserPlayerOnStopRequested;
+        _browserPlayer.SeekRequested -= BrowserPlayerOnSeekRequested;
+        _browserPlayer.VolumeRequested -= BrowserPlayerOnVolumeRequested;
+        _browserPlayer.MuteRequested -= BrowserPlayerOnMuteRequested;
     }
 
     public void MinimizeWithMainWindow()
@@ -174,7 +203,20 @@ public partial class BrowserPlayerWindow : Window
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         if (PresentationSource.FromVisual(this) is HwndSource source)
+        {
             source.AddHook(WindowProc);
+            ApplyDwmWindowStyle(source.Handle);
+        }
+    }
+
+    private static void ApplyDwmWindowStyle(IntPtr handle)
+    {
+        var cornerPreference = DwmWindowCornerDoNotRound;
+        DwmSetWindowAttribute(handle, DwmwaWindowCornerPreference,
+            ref cornerPreference, sizeof(uint));
+
+        var borderColor = DwmColorNone;
+        DwmSetWindowAttribute(handle, DwmwaBorderColor, ref borderColor, sizeof(uint));
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -279,7 +321,12 @@ public partial class BrowserPlayerWindow : Window
     private async Task InitializeWebViewAsync()
     {
         if (YoutubeWebView.CoreWebView2 is null)
-            await YoutubeWebView.EnsureCoreWebView2Async();
+        {
+            var options = new CoreWebView2EnvironmentOptions(
+                "--disable-gpu --disable-gpu-compositing --disable-accelerated-video-decode");
+            var environment = await CreateWebViewEnvironmentAsync(options);
+            await YoutubeWebView.EnsureCoreWebView2Async(environment);
+        }
 
         if (_webViewInitialized)
             return;
@@ -527,6 +574,31 @@ public partial class BrowserPlayerWindow : Window
     private static string GetPlayerPageFolder() =>
         Path.Combine(AppContext.BaseDirectory, "Assets", "WebView2");
 
+    private static string GetWebViewUserDataFolder() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TwitchAudioPlayer", "WebView2");
+
+    private static async Task<CoreWebView2Environment> CreateWebViewEnvironmentAsync(
+        CoreWebView2EnvironmentOptions options)
+    {
+        var primaryFolder = GetWebViewUserDataFolder();
+        try
+        {
+            Directory.CreateDirectory(primaryFolder);
+            return await CoreWebView2Environment.CreateAsync(
+                userDataFolder: primaryFolder,
+                options: options);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
+        {
+            var fallbackFolder = Path.Combine(Path.GetTempPath(), "TwitchAudioPlayer", "WebView2");
+            Directory.CreateDirectory(fallbackFolder);
+            return await CoreWebView2Environment.CreateAsync(
+                userDataFolder: fallbackFolder,
+                options: options);
+        }
+    }
+
     private static Uri GetPlayerPageUri() =>
         new($"https://{PlayerHostName}/youtube-player.html");
 
@@ -641,14 +713,6 @@ public partial class BrowserPlayerWindow : Window
                             element.style.setProperty("opacity", "0", "important");
                             element.style.setProperty("visibility", "hidden", "important");
                             element.style.setProperty("pointer-events", "none", "important");
-                            const tagName = element.tagName.toLowerCase();
-                            if (element.id === "player-controls" ||
-                                element.id === "bottom-sheet-wrapper" ||
-                                tagName.startsWith("ytm-") ||
-                                element.classList.contains("ytPlayerControlsContainerHost") ||
-                                element.classList.contains("ytPlayerControlsContainerRendered")) {
-                                element.remove();
-                            }
                         }
                     }
                 };
@@ -681,4 +745,11 @@ public partial class BrowserPlayerWindow : Window
         public int Right;
         public int Bottom;
     }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr hwnd,
+        int attribute,
+        ref uint value,
+        int valueSize);
 }

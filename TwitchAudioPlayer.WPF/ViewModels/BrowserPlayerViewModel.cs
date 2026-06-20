@@ -55,10 +55,14 @@ public partial class BrowserPlayerViewModel : ObservableObject
 
     [ObservableProperty] private string _volumeAccentBrush = "#FF8A49E6";
 
-    public BrowserPlayerViewModel(BrowserPlayerService browserPlayer, IUserSettingsManager userSettingsManager)
+    public VkYouTubePlaybackService VkYouTube { get; }
+
+    public BrowserPlayerViewModel(BrowserPlayerService browserPlayer, IUserSettingsManager userSettingsManager,
+        VkYouTubePlaybackService vkYouTube)
     {
         _browserPlayer = browserPlayer;
         _userSettingsManager = userSettingsManager;
+        VkYouTube = vkYouTube;
         _player = StaticService.Container.GetRequiredService<PlayerService>();
 
         var dispatcher = Dispatcher.CurrentDispatcher;

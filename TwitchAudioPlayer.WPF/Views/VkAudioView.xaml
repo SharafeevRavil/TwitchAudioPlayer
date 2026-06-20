@@ -15,19 +15,46 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" Content="Load Tracks (Default order)" Command="{Binding LoadAudioTracksCommand}"
+            <Button Grid.Row="0" Grid.Column="0" Content="Load Tracks (Default order)" Command="{Binding LoadAudioTracksCommand}"
                     Margin="5" />
-            <Button Grid.Column="1" Content="Shuffle Tracks" Command="{Binding ShuffleTracksCommand}" Margin="5 " />
-            <Button Grid.Column="2" Command="{Binding SettingsCommand}" Margin="5" 
+            <Button Grid.Row="0" Grid.Column="1" Content="Shuffle Tracks" Command="{Binding ShuffleTracksCommand}" Margin="5 " />
+            <Button Grid.Row="0" Grid.Column="2" Command="{Binding SettingsCommand}" Margin="5"
                     Style="{StaticResource MaterialDesignIconButton}" Width="35" Height="35" > 
                 <materialDesign:PackIcon Kind="Settings" />
             </Button>
+
+            <Grid Grid.Row="1" Grid.ColumnSpan="3" Margin="8,2,8,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center"
+                          Content="Auto play YouTube instead of VK"
+                          IsChecked="{Binding VkYouTube.AutoPlayEnabled, Mode=TwoWay}" />
+                <ToggleButton Grid.Column="1" MinWidth="58" Padding="8,3" Content="VK"
+                              IsEnabled="{Binding VkYouTube.IsAvailable}"
+                              IsChecked="{Binding VkYouTube.IsVkSourceSelected, Mode=OneWay}"
+                              Command="{Binding VkYouTube.SwitchToVkCommand}" />
+                <ToggleButton Grid.Column="2" MinWidth="82" Padding="8,3" Content="YouTube"
+                              IsEnabled="{Binding VkYouTube.IsAvailable}"
+                              IsChecked="{Binding VkYouTube.IsYouTubeSourceSelected, Mode=OneWay}"
+                              Command="{Binding VkYouTube.SwitchToYouTubeCommand}" />
+                <TextBlock Grid.Column="3" Margin="10,0,0,0" VerticalAlignment="Center"
+                           Text="{Binding VkYouTube.StatusText}" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource MaterialDesignBodyLight}" />
+            </Grid>
         </Grid>
 
         <ListBox Grid.Row="1" ItemsSource="{Binding AudioTrackViewModels}" HorizontalContentAlignment="Stretch" Margin="0 0 5 0" 

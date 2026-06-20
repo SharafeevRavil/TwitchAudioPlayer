@@ -10,6 +10,7 @@ using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
 using TwitchAudioPlayer.WPF.MusicX.ViewModels;
 using TwitchAudioPlayer.WPF.Services;
+using TwitchAudioPlayer.WPF.Services.MusicOrder;
 
 namespace TwitchAudioPlayer.WPF.ViewModels;
 
@@ -20,6 +21,8 @@ public partial class VkAudioViewModel : ObservableObject
     private readonly VkService _vkService;
     private readonly IWindowService _windowService;
 
+    public VkYouTubePlaybackService VkYouTube { get; }
+
     private List<PlaylistTrack> _audioTracks = [];
 
     [ObservableProperty] private ObservableCollection<AudioTrackViewModel> _audioTrackViewModels;
@@ -29,10 +32,12 @@ public partial class VkAudioViewModel : ObservableObject
 
     private bool _loading;
 
-    public VkAudioViewModel(IWindowService windowService, IUserSettingsManager userSettingsManager)
+    public VkAudioViewModel(IWindowService windowService, IUserSettingsManager userSettingsManager,
+        VkYouTubePlaybackService vkYouTube)
     {
         _windowService = windowService;
         _userSettingsManager = userSettingsManager;
+        VkYouTube = vkYouTube;
         
         var dispatcher = Dispatcher.CurrentDispatcher;
         _userSettingsManager.SettingsChanged += (_, _) => dispatcher.Invoke(async () => await OnSettingsChangedAsync());

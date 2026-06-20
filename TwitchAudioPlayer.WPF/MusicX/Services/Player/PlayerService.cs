@@ -28,6 +28,19 @@ public class PlayerService
 
     protected int positionTimerListenTogetherCouter = 0;
 
+    private bool _isPlaybackSuppressed;
+
+    public bool IsPlaybackSuppressed
+    {
+        get => Volatile.Read(ref _isPlaybackSuppressed);
+        set
+        {
+            Volatile.Write(ref _isPlaybackSuppressed, value);
+            if (value)
+                player.Pause();
+        }
+    }
+
     public PlayerService(Logger logger /*, ISnackbarService snackbarService*/,
         IEnumerable<ITrackMediaSource> mediaSources /*, IEnumerable<ITrackStatsListener> statsListeners*/
         /*, ConfigService configService*/)
@@ -163,25 +176,43 @@ public class PlayerService
         {
             if (trackIndex == CurrentIndex)
             {
-                if (position is not null) Seek(position.Value);
-                player.Play();
+                if (position is not null)
+                    Seek(position.Value);
+
+                if (IsPlaybackSuppressed)
+                    player.Pause();
+                else
+                    player.Play();
                 return;
             }
 
-
             _tokenSource?.Cancel();
             _tokenSource?.Dispose();
-            _tokenSource = new CancellationTokenSource();
+            var playbackCts = new CancellationTokenSource();
+            var playbackToken = playbackCts.Token;
+            _tokenSource = playbackCts;
 
             player.Pause();
 
             var track = await TrackAtOrDefaultAsync(trackIndex);
-
-            if (track is null) return;
+            if (track is null)
+                return;
 
             CurrentIndex = trackIndex;
             NextPlayTrackIndex = trackIndex + 1;
             await TrackAtOrDefaultAsync(NextPlayTrackIndex);
+
+            // Until the new source is opened MediaPlayer still exposes the previous source's
+            // position. TrackChanged listeners (including the YouTube resolver) must never
+            // observe that stale value as the new track start position.
+            try
+            {
+                player.PlaybackSession.Position = position ?? TimeSpan.Zero;
+            }
+            catch (Exception e)
+            {
+                logger.Debug(e, "Could not reset position before changing track");
+            }
 
             Application.Current.Dispatcher.BeginInvoke(() =>
             {
@@ -191,43 +222,59 @@ public class PlayerService
                 TrackLoadingStateChanged?.Invoke(this, new PlayerLoadingEventArgs(PlayerLoadingState.Started));
             });
 
-            if (string.IsNullOrEmpty(track.Data.Url)) await NextTrack();
+            if (string.IsNullOrEmpty(track.Data.Url))
+            {
+                await NextTrack();
+                return;
+            }
 
-            var allSourcesTask =
-                Task.WhenAll(_mediaSources.Select(b => b.OpenWithMediaPlayerAsync(player, track, _tokenSource.Token)));
+            var allSourcesTask = Task.WhenAll(_mediaSources.Select(source =>
+                source.OpenWithMediaPlayerAsync(player, track, playbackToken)));
             try
             {
                 await allSourcesTask;
             }
             catch
             {
-                // await unwraps AggregateException into only the first exception,
-                // but we need to make sure that all exceptions are cancel ones
                 if (allSourcesTask.IsCanceled ||
-                    allSourcesTask.Exception?.InnerExceptions.All(b => b is OperationCanceledException) is true)
-                    return; // canceled
+                    allSourcesTask.Exception?.InnerExceptions.All(exception =>
+                        exception is OperationCanceledException) is true)
+                    return;
 
                 throw;
             }
 
-            if (!allSourcesTask.Result.Any(b => b)) // no sources picked up this track
+            playbackToken.ThrowIfCancellationRequested();
+            if (!allSourcesTask.Result.Any(sourceAccepted => sourceAccepted))
             {
                 await NextTrack();
                 return;
             }
 
-            if (position is not null) Seek(position.Value);
-            // await Task.WhenAll(_statsListeners.Select(b => b.TrackPlayStateChangedAsync(track, position.Value, false)));
-            player.Play();
-            UpdateWindowsData().SafeFireAndForget();
+            // MediaPlayer can retain the previous source position. Every genuinely new track
+            // must explicitly start at zero unless a restore/switch position was requested.
+            Seek(position ?? TimeSpan.Zero);
 
-            Application.Current.Dispatcher.BeginInvoke(
-                () => TrackLoadingStateChanged?.Invoke(this, new PlayerLoadingEventArgs(PlayerLoadingState.Finished)));
+            // TrackChanged is raised before media source opening completes. An iframe replacement
+            // may suppress native playback while we are awaiting the source, so never play
+            // unconditionally here.
+            if (IsPlaybackSuppressed)
+                player.Pause();
+            else
+                player.Play();
+
+            UpdateWindowsData().SafeFireAndForget();
+            Application.Current.Dispatcher.BeginInvoke(() =>
+                TrackLoadingStateChanged?.Invoke(this,
+                    new PlayerLoadingEventArgs(PlayerLoadingState.Finished)));
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception e)
         {
-            logger.Error(e, "Failed to play track from queue {TrackIndex} {QueueSize}", trackIndex, Tracks.Count);
-            // _snackbarService.ShowException("Ошибка", "Произошла ошибка при воспроизведении");
+            logger.Error(e, "Failed to play track from queue {TrackIndex} {QueueSize}",
+                trackIndex, Tracks.Count);
         }
     }
 
@@ -445,11 +492,10 @@ public class PlayerService
 
     public async void Pause()
     {
-        if (!IsPlaying)
-            return;
-
         try
         {
+            // Pause must also reach MediaPlayer while a source is still opening. Checking
+            // IsPlaying here creates a race with PlayTrackAsync's final player.Play().
             player.Pause();
 
             if (Application.Current.Dispatcher.CheckAccess())
@@ -457,8 +503,6 @@ public class PlayerService
             else
                 await Application.Current.Dispatcher.InvokeAsync(
                     () => PlayStateChangedEvent?.Invoke(this, EventArgs.Empty));
-
-            // await Task.WhenAll(_statsListeners.Select(b => b.TrackPlayStateChangedAsync(CurrentTrack!, player.Position, true)));
         }
         catch (Exception ex)
         {
@@ -543,6 +587,9 @@ public class PlayerService
 
     protected void MediaPlayerOnMediaEnded(MediaPlayer sender, object args)
     {
+        if (IsPlaybackSuppressed)
+            return;
+
         try
         {
             if (IsRepeat)
@@ -600,6 +647,9 @@ public class PlayerService
 
     protected async void MediaPlayerOnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
     {
+        if (IsPlaybackSuppressed)
+            return;
+
         if (args.Error == MediaPlayerError.SourceNotSupported)
         {
             logger.Error("Error SourceNotSupported player");

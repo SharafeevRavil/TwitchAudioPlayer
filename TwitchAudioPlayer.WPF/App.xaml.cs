@@ -52,20 +52,18 @@ public partial class App : Application
 
     private static void ConfigureServices(ServiceCollection services)
     {
-        // Configure Logging
         var logFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "TwitchAudioPlayer", "logs", $"log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         Log.Logger = new LoggerConfiguration()
             .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
             .CreateLogger();
-        
+
         services.AddLogging(builder =>
         {
             builder.ClearProviders();
             builder.AddSerilog();
         });
 
-        // Register Services
         var settingsFilePathFolder = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "TwitchAudioPlayer");
         var settingsFilePath = Path.Combine(new DirectoryInfo(settingsFilePathFolder).FullName, "userSettings.json");
@@ -76,19 +74,19 @@ public partial class App : Application
         services.AddSingleton<BrowserPlayerService>();
         services.AddSingleton<BrowserPlayerWindowService>();
         services.AddTransient<MusicOrderRepository>();
-        
+
         services.AddSingleton<DonationAlertsService>();
         services.AddTransient<DonationAlertsOrdersNotifier>();
-        
+
         services.AddSingleton<TwitchService>();
         services.AddSingleton<TwitchTokenStorage>();
         services.AddTransient<TwitchOrdersNotifier>();
-        
+
         services.AddSingleton<MusicOrderService>();
         services.AddTransient<YouTubeService>();
-        
+        services.AddSingleton<YouTubeSearchService>();
+        services.AddSingleton<VkYouTubePlaybackService>();
 
-        // Register ViewModels
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<VkAudioViewModel>();
         services.AddTransient<AudioPlayerViewModel>();
@@ -98,7 +96,6 @@ public partial class App : Application
         services.AddTransient<YtSettingsViewModel>();
         services.AddTransient<HotkeySettingsViewModel>();
 
-        // Register Views
         services.AddSingleton<MainWindow>();
         services.AddTransient<VkAudioView>();
         services.AddTransient<AudioTrackControl>();
@@ -111,7 +108,7 @@ public partial class App : Application
         services.AddTransient<HotkeySettingsView>();
 
         InitMusicX();
-        
+
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<App>>();
         logger.LogInformation("Приложение запущено");

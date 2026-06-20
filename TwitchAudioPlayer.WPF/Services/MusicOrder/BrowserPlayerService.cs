@@ -5,6 +5,7 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder;
 
 public sealed partial class BrowserPlayerService : ObservableObject
 {
+    private int _nextRequestId;
     [ObservableProperty] private bool _isYouTubeActive;
     [ObservableProperty] private bool _isPlaying;
     [ObservableProperty] private bool _isMuted;
@@ -12,6 +13,7 @@ public sealed partial class BrowserPlayerService : ObservableObject
     [ObservableProperty] private TimeSpan _position;
     [ObservableProperty] private TimeSpan _duration;
     [ObservableProperty] private PlaylistTrack? _currentTrack;
+    [ObservableProperty] private BrowserPlaybackOwner _currentOwner;
     [ObservableProperty] private string _statusText = "YouTube browser player is starting...";
 
     public event EventHandler<YouTubeBrowserPlaybackRequest>? LoadRequested;
@@ -25,8 +27,11 @@ public sealed partial class BrowserPlayerService : ObservableObject
     public event EventHandler? PlaybackEnded;
     public event EventHandler<string>? PlaybackFailed;
 
+    public int CreateRequestId() => Interlocked.Increment(ref _nextRequestId);
+
     public void Load(YouTubeBrowserPlaybackRequest request)
     {
+        CurrentOwner = request.Owner;
         CurrentTrack = request.Track;
         Position = request.StartPosition;
         Duration = request.Track.Data.Duration;
@@ -61,6 +66,7 @@ public sealed partial class BrowserPlayerService : ObservableObject
         Position = TimeSpan.Zero;
         Duration = TimeSpan.Zero;
         CurrentTrack = null;
+        CurrentOwner = BrowserPlaybackOwner.None;
         StopRequested?.Invoke(this, EventArgs.Empty);
     }
 
