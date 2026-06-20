@@ -312,9 +312,13 @@ public sealed class ChatGptResolverService : IDisposable
     {
         var builder = new StringBuilder();
         builder.AppendLine("You select a YouTube video to replace a VK audio track.");
-        builder.AppendLine("Use only the supplied candidates. YouTube relevance order is strong evidence.");
-        builder.AppendLine("The musical recording/version must match. Prefer a real music video, official artist upload, lyric/visual video, or a strong fan clip. Intros/outros and different video duration are normal. Do not choose a live, cover, remix or alternate version unless the VK title asks for it. Views and channel identity are supporting evidence, not hard requirements.");
-        builder.AppendLine("If none is sufficiently likely to be the same recording, select null so VK keeps playing.");
+        builder.AppendLine("Use only the supplied candidates. YouTube relevance order is useful evidence, but title relevance is not proof.");
+        builder.AppendLine("Selection rule: Choose a video only if it is highly likely the same recording/master/release/version as the VK track. Do not infer from title or artist alone. If certainty is below 90%, return null.");
+        builder.AppendLine("Zero selection is safer than a wrong replacement. If there is any doubt about the track version, return null even when titles look similar.");
+        builder.AppendLine("Lyrics, lyric videos, remixes, mashups, dubs, covers, live recordings, slowed/sped-up/nightcore edits, and fan uploads are not equivalent to official recordings unless the VK title explicitly requests that exact version.");
+        builder.AppendLine("Ignore misleading titles. If a famous artist name appears in the title or channel but the candidate is not clearly an official release/same master, treat it as unconfirmed and return null.");
+        builder.AppendLine("Priority evidence: official audio/video, verified artist channel, VEVO, major label channel, or clearly official artist upload. Other uploads are acceptable only when there is no real doubt; otherwise return null.");
+        builder.AppendLine("Intros/outros and different music video duration can be normal, but they do not compensate for version uncertainty.");
         builder.AppendLine("Reply with one JSON object and nothing else:");
         builder.AppendLine("{\"requestId\":\"...\",\"selectedVideoId\":\"... or null\",\"reason\":\"short reason\"}");
         builder.AppendLine($"requestId: {requestId}");
