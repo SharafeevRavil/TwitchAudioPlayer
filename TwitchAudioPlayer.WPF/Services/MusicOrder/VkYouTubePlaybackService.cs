@@ -334,7 +334,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
                 if (IsVkTrack(next))
                 {
                     if (!HasCache(next!))
-                        await GetCandidatesAsync(next!, cts.Token);
+                        await GetCandidatesAsync(next!, cts.Token, false);
                     return;
                 }
 
@@ -352,7 +352,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     }
 
     private async Task<IReadOnlyList<YouTubeMatchCandidate>> GetCandidatesAsync(
-        PlaylistTrack track, CancellationToken cancellationToken)
+        PlaylistTrack track, CancellationToken cancellationToken, bool useChatGpt = true)
     {
         var key = TrackKey(track);
         _manual.TryGetValue(key, out var manual);
@@ -378,7 +378,9 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
             _ = SaveStateAsync();
         }
 
-        return await ApplyChatGptDecisionAsync(track, candidates, cancellationToken);
+        return useChatGpt
+            ? await ApplyChatGptDecisionAsync(track, candidates, cancellationToken)
+            : candidates;
     }
 
     private async Task<IReadOnlyList<YouTubeMatchCandidate>> ApplyChatGptDecisionAsync(
