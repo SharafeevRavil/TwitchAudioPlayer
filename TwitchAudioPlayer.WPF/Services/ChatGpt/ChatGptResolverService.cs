@@ -92,25 +92,18 @@ public sealed class ChatGptResolverService : IDisposable
         if (DateTimeOffset.UtcNow < _blockedUntil)
             return null;
 
-        CancellationTokenSource requestCts;
-        CancellationTokenSource? previous;
-        lock (_activeRequestLock)
-        {
-            previous = _activeRequest;
-            requestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            requestCts.CancelAfter(RequestTimeout);
-            _activeRequest = requestCts;
-        }
-
-        previous?.Cancel();
-        if (previous is not null)
-            _ = StopActiveGenerationAsync();
+        using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        requestCts.CancelAfter(RequestTimeout);
+        var started = false;
 
         try
         {
             await _requestGate.WaitAsync(requestCts.Token);
             try
             {
+                lock (_activeRequestLock)
+                    _activeRequest = requestCts;
+                started = true;
                 requestCts.Token.ThrowIfCancellationRequested();
                 var requestId = Guid.NewGuid().ToString("N");
                 var prompt = BuildPrompt(requestId, artist, title, topCandidates);
@@ -131,20 +124,38 @@ public sealed class ChatGptResolverService : IDisposable
             }
             finally
             {
+                if (started)
+                {
+                    lock (_activeRequestLock)
+                    {
+                        if (ReferenceEquals(_activeRequest, requestCts))
+                            _activeRequest = null;
+                    }
+                }
+
                 _requestGate.Release();
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await StopActiveGenerationAsync();
+            if (started)
+                await StopActiveGenerationAsync();
             SetStatus("Obsolete ChatGPT request stopped");
             throw;
         }
         catch (OperationCanceledException)
         {
-            await StopActiveGenerationAsync();
-            _blockedUntil = DateTimeOffset.UtcNow + FailureCooldown;
-            SetStatus("ChatGPT did not answer in time; using local ranking");
+            if (started)
+            {
+                await StopActiveGenerationAsync();
+                _blockedUntil = DateTimeOffset.UtcNow + FailureCooldown;
+                SetStatus("ChatGPT did not answer in time; using local ranking");
+            }
+            else
+            {
+                SetStatus("Queued ChatGPT request expired; using local ranking");
+            }
+
             return null;
         }
         catch (Exception exception)
@@ -153,16 +164,6 @@ public sealed class ChatGptResolverService : IDisposable
             _logger.Warning(exception, "ChatGPT resolver failed");
             SetStatus($"ChatGPT unavailable: {exception.Message}");
             return null;
-        }
-        finally
-        {
-            lock (_activeRequestLock)
-            {
-                if (ReferenceEquals(_activeRequest, requestCts))
-                    _activeRequest = null;
-            }
-
-            requestCts.Dispose();
         }
     }
 

@@ -334,7 +334,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
                 if (IsVkTrack(next))
                 {
                     if (!HasCache(next!))
-                        await GetCandidatesAsync(next!, cts.Token, false);
+                        await GetCandidatesAsync(next!, cts.Token);
                     return;
                 }
 
