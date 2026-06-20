@@ -89,6 +89,11 @@
                             Style="{StaticResource MaterialDesignFlatButton}">
                         <materialDesign:PackIcon Kind="Settings" Width="25" Height="25" />
                     </Button>
+                    <Button Command="{Binding ChatGptSettingsCommand}" Width="60" Height="40"
+                            ToolTip="ChatGPT resolver settings"
+                            Style="{StaticResource MaterialDesignFlatButton}">
+                        <materialDesign:PackIcon Kind="Robot" Width="25" Height="25" />
+                    </Button>
                     <TextBlock Text="{Binding Version}" FontWeight="Bold" VerticalAlignment="Center" FontSize="10"
                                Margin="10, 5"
                                Foreground="{DynamicResource MaterialDesignBody}" />

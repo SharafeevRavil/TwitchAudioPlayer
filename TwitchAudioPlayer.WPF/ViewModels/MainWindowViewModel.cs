@@ -19,6 +19,12 @@ public partial class MainWindowViewModel(IWindowService windowService) : Observa
         windowService.OpenHotkeySettingsWindow();
     }
 
+    [RelayCommand]
+    private void ChatGptSettings()
+    {
+        windowService.OpenChatGptSettingsWindow();
+    }
+
     [ObservableProperty] private string _version =
         $"v.{FileVersionInfo.GetVersionInfo((Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly()).Location)
             .FileVersion ?? "not defined"}";

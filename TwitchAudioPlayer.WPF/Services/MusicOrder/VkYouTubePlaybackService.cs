@@ -12,6 +12,7 @@ using Serilog;
 using TwitchAudioPlayer.WPF.MusicX.Services;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Playlists;
+using TwitchAudioPlayer.WPF.Services.ChatGpt;
 using YoutubeExplode;
 using YoutubeExplode.Search;
 
@@ -105,6 +106,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private readonly IUserSettingsManager _settingsManager;
     private readonly BrowserPlayerService _browserPlayer;
     private readonly YouTubeSearchService _searchService;
+    private readonly ChatGptResolverService _chatGptResolver;
     private readonly PlayerService _player;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private readonly SemaphoreSlim _saveGate = new(1, 1);
@@ -133,11 +135,12 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private const int CacheFormatVersion = 15;
 
     public VkYouTubePlaybackService(IUserSettingsManager settingsManager, BrowserPlayerService browserPlayer,
-        YouTubeSearchService searchService)
+        YouTubeSearchService searchService, ChatGptResolverService chatGptResolver)
     {
         _settingsManager = settingsManager;
         _browserPlayer = browserPlayer;
         _searchService = searchService;
+        _chatGptResolver = chatGptResolver;
         _player = StaticService.Container.GetRequiredService<PlayerService>();
         _autoPlayEnabled = settingsManager.Settings.AutoPlayYouTubeForVk;
         _cachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -353,9 +356,6 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     {
         var key = TrackKey(track);
         _manual.TryGetValue(key, out var manual);
-        if (_cache.TryGetValue(key, out var cached) &&
-            DateTimeOffset.UtcNow - cached.CreatedAt < CacheLifetime)
-            return PromoteManual(cached.Candidates, manual);
         if (manual is not null)
             return [manual with
             {
@@ -363,13 +363,69 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
                 Reason = "saved manual choice"
             }];
 
-        var query = $"{track.GetArtistsString()} {track.Title}".Trim();
-        var results = await SearchAsync(query, YouTubeSearchSort.Relevance, cancellationToken);
-        var candidates = Rank(track, results);
+        IReadOnlyList<YouTubeMatchCandidate> candidates;
+        if (_cache.TryGetValue(key, out var cached) &&
+            DateTimeOffset.UtcNow - cached.CreatedAt < CacheLifetime)
+        {
+            candidates = cached.Candidates;
+        }
+        else
+        {
+            var query = $"{track.GetArtistsString()} {track.Title}".Trim();
+            var results = await SearchAsync(query, YouTubeSearchSort.Relevance, cancellationToken);
+            candidates = Rank(track, results);
+            _cache[key] = new CacheEntry(DateTimeOffset.UtcNow, candidates);
+            _ = SaveStateAsync();
+        }
 
-        _cache[key] = new CacheEntry(DateTimeOffset.UtcNow, candidates);
-        _ = SaveStateAsync();
-        return candidates;
+        return await ApplyChatGptDecisionAsync(track, candidates, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<YouTubeMatchCandidate>> ApplyChatGptDecisionAsync(
+        PlaylistTrack track,
+        IReadOnlyList<YouTubeMatchCandidate> candidates,
+        CancellationToken cancellationToken)
+    {
+        if (!_chatGptResolver.IsEnabled || candidates.Count == 0)
+            return candidates;
+
+        var decision = await _chatGptResolver.ResolveAsync(
+            track.GetArtistsString(),
+            track.Title,
+            candidates.Take(5).Select(candidate => new ChatGptYouTubeCandidate(
+                candidate.VideoId,
+                candidate.Rank,
+                candidate.Title,
+                candidate.ChannelTitle,
+                candidate.ViewCount,
+                candidate.Duration)).ToArray(),
+            cancellationToken);
+        if (decision is null)
+            return candidates;
+
+        if (decision.SelectedVideoId is null)
+        {
+            return candidates.Select(candidate => candidate with
+            {
+                Confidence = candidate.Confidence == YouTubeMatchConfidence.High
+                    ? YouTubeMatchConfidence.Medium
+                    : candidate.Confidence,
+                Reason = $"ChatGPT kept VK: {decision.Reason}"
+            }).ToArray();
+        }
+
+        var promotedScore = candidates.Max(candidate => candidate.Score) + 100;
+        return candidates.Select(candidate => candidate.VideoId == decision.SelectedVideoId
+            ? candidate with
+            {
+                Kind = candidate.Kind is YouTubeCandidateKind.OfficialVideo or YouTubeCandidateKind.Visual
+                    ? candidate.Kind
+                    : YouTubeCandidateKind.Video,
+                Score = promotedScore,
+                Confidence = YouTubeMatchConfidence.High,
+                Reason = $"ChatGPT: {decision.Reason}"
+            }
+            : candidate).ToArray();
     }
 
     private IReadOnlyList<YouTubeMatchCandidate> Rank(
@@ -693,14 +749,6 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         var key = TrackKey(track);
         return _manual.ContainsKey(key) || _cache.TryGetValue(key, out var cached) &&
             DateTimeOffset.UtcNow - cached.CreatedAt < CacheLifetime;
-    }
-
-    private static IReadOnlyList<YouTubeMatchCandidate> PromoteManual(
-        IReadOnlyList<YouTubeMatchCandidate> candidates, YouTubeMatchCandidate? manual)
-    {
-        if (manual is null) return candidates;
-        var saved = manual with { Confidence = YouTubeMatchConfidence.High, Reason = "saved manual choice" };
-        return [saved, .. candidates.Where(c => c.VideoId != saved.VideoId)];
     }
 
     private void LoadState()
