@@ -15,7 +15,7 @@ Write-Host "Publishing TwitchAudioPlayer.WPF ($Configuration)..." -ForegroundCol
 if (Test-Path $publishDir) {
     Remove-Item -Recurse -Force -LiteralPath $publishDir
 }
-dotnet publish $wpfProject -c $Configuration -f $targetFramework -o $publishDir
+dotnet publish $wpfProject -c $Configuration -f $targetFramework -r win-x64 --self-contained false -o $publishDir '-clp:ErrorsOnly;Summary'
 if ($LASTEXITCODE -ne 0) {
     throw "Publish failed with exit code $LASTEXITCODE."
 }
@@ -49,7 +49,7 @@ Write-Host "Building MSI with $msbuild..." -ForegroundColor Cyan
     /p:Platform=x86 `
     /p:BuildProjectReferences=false `
     /p:SkipAppProjectReference=true `
-    /m
+    '/clp:ErrorsOnly;Summary'
 if ($LASTEXITCODE -ne 0) {
     throw "MSI build failed with exit code $LASTEXITCODE."
 }
