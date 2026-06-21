@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -18,6 +20,10 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     [ObservableProperty] private YouTubePlaybackMode _youTubePlaybackMode;
 
     [ObservableProperty] private bool _useSeparateSourceVolumes;
+    [ObservableProperty] private bool _useYtDlpForSearch;
+    [ObservableProperty] private bool _rotateYouTubeUserAgent;
+    [ObservableProperty] private bool _useYouTubeProxy;
+    [ObservableProperty] private string? _youTubeProxyListText;
 
     public YtSettingsViewModel(IUserSettingsManager userSettingsManager, DonationAlertsService donationAlertsService,
         TwitchService twitchService)
@@ -33,6 +39,10 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         MaxMinutesLength = _userSettingsManager.Settings.MaxMinutesLength;
         YouTubePlaybackMode = _userSettingsManager.Settings.YouTubePlaybackMode;
         UseSeparateSourceVolumes = _userSettingsManager.Settings.UseSeparateSourceVolumes;
+        UseYtDlpForSearch = _userSettingsManager.Settings.UseYtDlpForSearch;
+        RotateYouTubeUserAgent = _userSettingsManager.Settings.RotateYouTubeUserAgent;
+        UseYouTubeProxy = _userSettingsManager.Settings.UseYouTubeProxy;
+        YouTubeProxyListText = string.Join("\n", _userSettingsManager.Settings.YouTubeProxyList ?? new List<string>());
 
         // Twitch
         TwitchRewardTitle = _userSettingsManager.Settings.TwitchRewardTitle;
@@ -65,6 +75,10 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         if (MaxMinutesLength.HasValue) _userSettingsManager.Settings.MaxMinutesLength = MaxMinutesLength.Value;
         _userSettingsManager.Settings.YouTubePlaybackMode = YouTubePlaybackMode;
         _userSettingsManager.Settings.UseSeparateSourceVolumes = UseSeparateSourceVolumes;
+        _userSettingsManager.Settings.UseYtDlpForSearch = UseYtDlpForSearch;
+        _userSettingsManager.Settings.RotateYouTubeUserAgent = RotateYouTubeUserAgent;
+        _userSettingsManager.Settings.UseYouTubeProxy = UseYouTubeProxy;
+        _userSettingsManager.Settings.YouTubeProxyList = (YouTubeProxyListText ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
         // Twitch
         _userSettingsManager.Settings.TwitchRewardTitle = TwitchRewardTitle;
         _userSettingsManager.Settings.TwitchRewardPrompt = TwitchRewardPrompt;

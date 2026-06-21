@@ -43,7 +43,6 @@ public partial class AudioPlayerViewModel : ObservableObject
 
     [ObservableProperty] private string _volumeAccentBrush = "#FF8A49E6";
 
-    private const string CommonVolumeBrush = "#FF8A49E6";
     private const string VkVolumeBrush = "#FF2787F5";
     private const string YouTubeVolumeBrush = "#FFFF0033";
 
@@ -345,11 +344,9 @@ public partial class AudioPlayerViewModel : ObservableObject
 
     private void UpdateVolumeAccentBrush()
     {
-        VolumeAccentBrush = !_userSettingsManager.Settings.UseSeparateSourceVolumes
-            ? CommonVolumeBrush
-            : _browserPlayer.IsYouTubeActive
-                ? YouTubeVolumeBrush
-                : VkVolumeBrush;
+        VolumeAccentBrush = _browserPlayer.IsYouTubeActive
+            ? YouTubeVolumeBrush
+            : VkVolumeBrush;
     }
 
     private void OnBrowserPlayerChanged(string? propertyName)
@@ -402,6 +399,12 @@ public partial class AudioPlayerViewModel : ObservableObject
         {
             if (_browserPlayer.IsYouTubeActive)
             {
+                if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement)
+                {
+                    await VkYouTube.SkipReplacementPreviousAsync();
+                    return;
+                }
+
                 _browserPlayer.Seek(TimeSpan.Zero);
                 return;
             }
@@ -421,6 +424,12 @@ public partial class AudioPlayerViewModel : ObservableObject
         {
             if (_browserPlayer.IsYouTubeActive)
             {
+                if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement)
+                {
+                    await VkYouTube.SkipReplacementNextAsync();
+                    return;
+                }
+
                 _browserPlayer.RequestSkip();
                 return;
             }

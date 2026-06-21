@@ -84,11 +84,9 @@ public sealed record YouTubeMatchCandidate(
 
 public sealed partial class VkYouTubePlaybackService : ObservableObject
 {
-    private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(1200);
-    private static readonly TimeSpan RequestInterval = TimeSpan.FromMilliseconds(1500);
+    private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromDays(14);
-    private static readonly TimeSpan PrefetchDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan PrefetchRetryDelay = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan PrefetchDelay = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan RateLimitCooldown = TimeSpan.FromMinutes(15);
     private static readonly string[] Decorations =
     [
@@ -108,31 +106,35 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private readonly YouTubeSearchService _searchService;
     private readonly ChatGptResolverService _chatGptResolver;
     private readonly PlayerService _player;
-    private readonly SemaphoreSlim _requestGate = new(1, 1);
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
+    private readonly ConcurrentDictionary<string, byte> _aiPrepared = new();
     private readonly Dictionary<string, YouTubeMatchCandidate> _manual = new(StringComparer.Ordinal);
     private readonly HashSet<string> _failedVideos = new(StringComparer.Ordinal);
     private readonly string _cachePath;
     private CancellationTokenSource? _currentCts;
     private CancellationTokenSource? _prefetchCts;
-    private DateTimeOffset _lastRequestAt = DateTimeOffset.MinValue;
+    private CancellationTokenSource? _searchRetryCts;
+    private string? _prefetchTargetKey;
     private DateTimeOffset _blockedUntil = DateTimeOffset.MinValue;
     private YouTubeMatchCandidate? _lastAppliedCandidate;
     private int _consecutiveFailures;
     private int _fallbackAttempts;
+    private int _searchRetryAttempt;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsVkSourceSelected))]
     [NotifyPropertyChangedFor(nameof(IsYouTubeSourceSelected))]
     private VkPlaybackSource _activeSource;
     [ObservableProperty] private bool _autoPlayEnabled;
-    [ObservableProperty] private bool _isAvailable;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsResolverVisible))]
+    private bool _isAvailable;
     [ObservableProperty] private bool _isResolving;
     [ObservableProperty] private string _statusText = "Select a VK track";
     [ObservableProperty] private YouTubeMatchCandidate? _selectedCandidate;
 
-    private const int CacheFormatVersion = 15;
+    private const int CacheFormatVersion = 16;
 
     public VkYouTubePlaybackService(IUserSettingsManager settingsManager, BrowserPlayerService browserPlayer,
         YouTubeSearchService searchService, ChatGptResolverService chatGptResolver)
@@ -152,6 +154,12 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
             dispatcher.InvokeAsync(() => HandleTrackChangedAsync(_player.CurrentTrack));
         _player.NextTrackChanged += (_, _) =>
             dispatcher.InvokeAsync(() => SchedulePrefetch(_player.CurrentTrack));
+        // Also schedule prefetch when the queue or playlist changes so AI decisions
+        // can be prepared earlier (not only when track playback starts).
+        _player.QueueLoadingStateChanged += (_, _) =>
+            dispatcher.InvokeAsync(() => SchedulePrefetch(_player.CurrentTrack));
+        _player.CurrentPlaylistChanged += (_, _) =>
+            dispatcher.InvokeAsync(() => SchedulePrefetch(_player.CurrentTrack));
         _browserPlayer.PlaybackEnded += (_, _) => dispatcher.InvokeAsync(HandleEndedAsync);
         _browserPlayer.PlaybackFailed += (_, message) =>
             dispatcher.InvokeAsync(() => HandleFailureAsync(message));
@@ -168,6 +176,8 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     public ObservableCollection<YouTubeMatchCandidate> Candidates { get; } = [];
     public bool IsVkSourceSelected => ActiveSource == VkPlaybackSource.Vk;
     public bool IsYouTubeSourceSelected => ActiveSource == VkPlaybackSource.YouTube;
+    public bool IsResolverVisible => IsAvailable &&
+                                     _browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder;
 
     partial void OnAutoPlayEnabledChanged(bool value)
     {
@@ -214,6 +224,15 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     }
 
     [RelayCommand]
+    private async Task ToggleSourceAsync()
+    {
+        if (ActiveSource == VkPlaybackSource.YouTube)
+            await SwitchToVkAsync();
+        else
+            await SwitchToYouTubeAsync();
+    }
+
+    [RelayCommand]
     private async Task SelectCandidateAsync()
     {
         var track = _player.CurrentTrack;
@@ -232,10 +251,45 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         await PlayAsync(saved);
     }
 
+    public async Task SkipReplacementNextAsync()
+    {
+        if (_browserPlayer.CurrentOwner != BrowserPlaybackOwner.VkReplacement)
+            return;
+
+        _browserPlayer.Stop();
+        ActiveSource = VkPlaybackSource.Vk;
+        _player.IsPlaybackSuppressed = false;
+        await _player.NextTrack();
+    }
+
+    public async Task SkipReplacementPreviousAsync()
+    {
+        if (_browserPlayer.CurrentOwner != BrowserPlaybackOwner.VkReplacement)
+            return;
+
+        _browserPlayer.Stop();
+        ActiveSource = VkPlaybackSource.Vk;
+        _player.IsPlaybackSuppressed = false;
+        await _player.PreviousTrack();
+    }
+
     private async Task HandleTrackChangedAsync(PlaylistTrack? track)
     {
         _currentCts?.Cancel();
-        _prefetchCts?.Cancel();
+        _searchRetryCts?.Cancel();
+        _searchRetryCts?.Dispose();
+        _searchRetryCts = null;
+        _searchRetryAttempt = 0;
+        var currentKey = IsVkTrack(track) && track is not null ? TrackKey(track) : null;
+        if (_prefetchCts is not null && !string.Equals(_prefetchTargetKey, currentKey, StringComparison.Ordinal))
+        {
+            try
+            {
+                _prefetchCts.Cancel();
+            }
+            catch { /* Ignore cancellation errors */ }
+        }
+
         if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement)
         {
             _browserPlayer.Stop();
@@ -256,30 +310,63 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         }
 
         StatusText = "Waiting to search YouTube…";
-        await ResolveAsync(track, AutoPlayEnabled);
+        await ResolveAsync(track, AutoPlayEnabled, true);
     }
 
     private async Task ResolveAsync(PlaylistTrack? track, bool autoPlay, bool skipDebounce = false)
     {
         if (!IsVkTrack(track) || track is null) return;
-        _currentCts?.Cancel();
-        _currentCts?.Dispose();
+
+        _logger.Information("ResolveAsync STARTED for {Track}, autoPlay={AutoPlay}",
+            track?.Title, autoPlay);
+
+        if (_currentCts is not null)
+        {
+            try
+            {
+                _currentCts.Cancel();
+            }
+            catch { /* Ignore cancellation errors */ }
+        }
         var cts = new CancellationTokenSource();
         _currentCts = cts;
         try
         {
             if (!skipDebounce && !HasCache(track))
+            {
+                _logger.Information("ResolveAsync: waiting {Debounce}ms before search", SearchDebounce.TotalMilliseconds);
                 await Task.Delay(SearchDebounce, cts.Token);
+            }
+
             IsResolving = true;
             StatusText = "Searching YouTube…";
-            var candidates = await GetCandidatesAsync(track, cts.Token);
-            if (cts.IsCancellationRequested || _player.CurrentTrack != track) return;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            _logger.Information("ResolveAsync: calling GetCandidatesAsync for {Track}", track?.Title);
+            var candidates = await GetCandidatesAsync(track, cts.Token, false);
+            sw.Stop();
+
+            _logger.Information("ResolveAsync: GetCandidatesAsync RETURNED {Count} candidates in {Elapsed}ms",
+                candidates.Count, sw.ElapsedMilliseconds);
+
+            if (cts.IsCancellationRequested || _player.CurrentTrack != track)
+            {
+                _logger.Information("ResolveAsync: CANCELLED or track changed");
+                return;
+            }
 
             Candidates.Clear();
             foreach (var candidate in candidates.Take(5)) Candidates.Add(candidate);
             var best = BestPlaybackCandidate(candidates);
             _lastAppliedCandidate = best;
             SelectedCandidate = best;
+
+            _logger.Information("ResolveAsync: best candidate: {Best}",
+                best is null ? "NONE" : $"#{best.Rank} {best.Title}");
+
+            if (candidates.Count == 0)
+                ScheduleCurrentSearchRetry(track, autoPlay);
+
             StatusText = best switch
             {
                 null => "No suitable YouTube videos found — playing VK",
@@ -287,19 +374,41 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
                 { Confidence: YouTubeMatchConfidence.Medium } => $"Uncertain: {best.Reason} — playing VK",
                 _ => "No reliable YouTube match — playing VK"
             };
+            if (_chatGptResolver.IsEnabled && candidates.Count > 0)
+            {
+                _logger.Information("ResolveAsync: AI enabled, calling ApplyChatGptDecisionAsync");
+                StatusText = "AI is choosing a YouTube replacement…";
+                candidates = await ApplyChatGptDecisionAsync(track, candidates, cts.Token);
+                _logger.Information("ResolveAsync: ApplyChatGptDecisionAsync RETURNED");
+                if (cts.IsCancellationRequested || _player.CurrentTrack != track) return;
+                best = ApplyResolvedCandidates(candidates);
+                StatusText = GetCandidateStatus(best);
+                _logger.Information("ResolveAsync: AI chose {Best}", best is null ? "NONE" : $"#{best.Rank}");
+            }
+
             if (autoPlay && best?.Confidence == YouTubeMatchConfidence.High)
+            {
+                _logger.Information("ResolveAsync: autoPlay enabled and high confidence, calling PlayAsync");
                 await PlayAsync(best);
+                _logger.Information("ResolveAsync: PlayAsync RETURNED");
+            }
+
             SchedulePrefetch(track);
+            _logger.Information("ResolveAsync COMPLETED successfully");
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            _logger.Information("ResolveAsync: CANCELLED");
+        }
         catch (YouTubeSearchCircuitOpenException e)
         {
+            _logger.Warning("ResolveAsync: YouTube search circuit open until {When}", e.BlockedUntil);
             StatusText = $"YouTube search paused until {e.BlockedUntil.LocalDateTime:t} — playing VK";
         }
         catch (Exception e)
         {
-            _logger.Warning(e, "Failed to resolve YouTube replacement for {Track}", track.Title);
-            StatusText = "YouTube search failed — playing VK";
+            _logger.Error(e, "ResolveAsync: EXCEPTION");
+            StatusText = $"YouTube search failed: {SingleLine(e.Message)} — playing VK";
         }
         finally
         {
@@ -308,45 +417,135 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
                 _currentCts = null;
                 IsResolving = false;
             }
+            try
+            {
+                cts.Dispose();
+            }
+            catch { /* Ignore disposal errors */ }
+            _logger.Information("ResolveAsync FINISHED for {Track}", track?.Title);
+        }
+    }
+
+    private YouTubeMatchCandidate? ApplyResolvedCandidates(IReadOnlyList<YouTubeMatchCandidate> candidates)
+    {
+        Candidates.Clear();
+        foreach (var candidate in candidates.Take(5)) Candidates.Add(candidate);
+        var best = BestPlaybackCandidate(candidates);
+        _lastAppliedCandidate = best;
+        SelectedCandidate = best;
+        return best;
+    }
+
+    private static string GetCandidateStatus(YouTubeMatchCandidate? best) => best switch
+    {
+        null => "No suitable YouTube videos found — playing VK",
+        { Confidence: YouTubeMatchConfidence.High } => $"High confidence: {best.Reason}",
+        { Confidence: YouTubeMatchConfidence.Medium } => $"Uncertain: {best.Reason} — playing VK",
+        _ => "No reliable YouTube match — playing VK"
+    };
+
+    private void ScheduleCurrentSearchRetry(PlaylistTrack track, bool autoPlay)
+    {
+        if (_searchRetryAttempt >= 1 || _searchRetryCts is { IsCancellationRequested: false })
+            return;
+
+        _searchRetryAttempt++;
+        var cts = new CancellationTokenSource();
+        _searchRetryCts = cts;
+        _ = RetryCurrentSearchAsync(track, autoPlay, cts);
+    }
+
+    private async Task RetryCurrentSearchAsync(
+        PlaylistTrack track,
+        bool autoPlay,
+        CancellationTokenSource cts)
+    {
+        try
+        {
+            StatusText = "YouTube search failed — retrying shortly…";
+            _logger.Information("Scheduling one YouTube search retry for current track {Track}", track.Title);
+            await Task.Delay(TimeSpan.FromSeconds(4), cts.Token);
+            if (_player.CurrentTrack != track)
+                return;
+
+            _logger.Information("Retrying YouTube search for current track {Track}", track.Title);
+            await ResolveAsync(track, autoPlay, true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Track changed before the retry.
+        }
+        finally
+        {
+            if (ReferenceEquals(_searchRetryCts, cts))
+                _searchRetryCts = null;
             cts.Dispose();
         }
     }
 
     private void SchedulePrefetch(PlaylistTrack? track)
     {
-        _prefetchCts?.Cancel();
-        _prefetchCts?.Dispose();
-        if (!AutoPlayEnabled || !IsVkTrack(track) || track is null) return;
+        _logger.Debug("SchedulePrefetch called for track: {Track}. AutoPlay={AutoPlayEnabled}", track?.Title, AutoPlayEnabled);
+        if (!AutoPlayEnabled || !IsVkTrack(track) || track is null)
+            return;
+
+        var next = _player.NextPlayTrack;
+        if (!IsVkTrack(next) || next is null)
+            return;
+
+        var targetKey = TrackKey(next);
+        if (_manual.ContainsKey(targetKey) ||
+            HasCache(next) && (!_chatGptResolver.IsEnabled || _aiPrepared.ContainsKey(AiPreparationKey(next))))
+            return;
+        if (string.Equals(_prefetchTargetKey, targetKey, StringComparison.Ordinal) &&
+            _prefetchCts is { IsCancellationRequested: false })
+            return;
+
+        try
+        {
+            _prefetchCts?.Cancel();
+            _prefetchCts?.Dispose();
+        }
+        catch
+        {
+            // The old prefetch is already ending.
+        }
 
         var cts = new CancellationTokenSource();
         _prefetchCts = cts;
-        _ = PrefetchAsync(track, cts);
+        _prefetchTargetKey = targetKey;
+        _ = PrefetchAsync(track, next, targetKey, cts);
     }
 
-    private async Task PrefetchAsync(PlaylistTrack current, CancellationTokenSource cts)
+    private async Task PrefetchAsync(
+        PlaylistTrack expectedCurrent,
+        PlaylistTrack target,
+        string targetKey,
+        CancellationTokenSource cts)
     {
         try
         {
+            _logger.Information("Prefetch scheduled for next VK track {Track}", target.Title);
             await Task.Delay(PrefetchDelay, cts.Token);
-            while (!cts.IsCancellationRequested && _player.CurrentTrack == current)
-            {
-                var next = _player.NextPlayTrack;
-                if (IsVkTrack(next))
-                {
-                    if (!HasCache(next!))
-                        await GetCandidatesAsync(next!, cts.Token);
-                    return;
-                }
 
-                await Task.Delay(PrefetchRetryDelay, cts.Token);
-            }
+            var current = _player.CurrentTrack;
+            if (current != expectedCurrent &&
+                (!IsVkTrack(current) || current is null || TrackKey(current) != targetKey))
+                return;
+
+            await GetCandidatesAsync(target, cts.Token, true);
+            _logger.Information("Prefetch completed for next VK track {Track}", target.Title);
         }
         catch (OperationCanceledException) { }
         catch (YouTubeSearchCircuitOpenException) { }
         catch (Exception e) { _logger.Debug(e, "YouTube prefetch failed"); }
         finally
         {
-            if (ReferenceEquals(_prefetchCts, cts)) _prefetchCts = null;
+            if (ReferenceEquals(_prefetchCts, cts))
+            {
+                _prefetchCts = null;
+                _prefetchTargetKey = null;
+            }
             cts.Dispose();
         }
     }
@@ -354,33 +553,60 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private async Task<IReadOnlyList<YouTubeMatchCandidate>> GetCandidatesAsync(
         PlaylistTrack track, CancellationToken cancellationToken, bool useChatGpt = true)
     {
+        _logger.Information("GetCandidatesAsync STARTED for {Track}, useChatGpt={UseChatGpt}", track?.Title, useChatGpt);
         var key = TrackKey(track);
         _manual.TryGetValue(key, out var manual);
         if (manual is not null)
+        {
+            _logger.Information("GetCandidatesAsync: manual selection exists");
             return [manual with
             {
                 Confidence = YouTubeMatchConfidence.High,
                 Reason = "saved manual choice"
             }];
+        }
 
         IReadOnlyList<YouTubeMatchCandidate> candidates;
         if (_cache.TryGetValue(key, out var cached) &&
             DateTimeOffset.UtcNow - cached.CreatedAt < CacheLifetime)
         {
+            _logger.Information("GetCandidatesAsync: using CACHED results ({Count} candidates)", cached.Candidates.Count);
             candidates = cached.Candidates;
         }
         else
         {
             var query = $"{track.GetArtistsString()} {track.Title}".Trim();
+            _logger.Information("GetCandidatesAsync: searching YouTube for query: {Query}", query);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var results = await SearchAsync(query, YouTubeSearchSort.Relevance, cancellationToken);
+            sw.Stop();
+            _logger.Information("GetCandidatesAsync: YouTube search RETURNED {Count} results in {Elapsed}ms",
+                results.Count, sw.ElapsedMilliseconds);
+
             candidates = Rank(track, results);
-            _cache[key] = new CacheEntry(DateTimeOffset.UtcNow, candidates);
-            _ = SaveStateAsync();
+            _logger.Information("GetCandidatesAsync: ranked to {Count} candidates", candidates.Count);
+
+            if (candidates.Count > 0)
+            {
+                _cache[key] = new CacheEntry(DateTimeOffset.UtcNow, candidates);
+                _ = SaveStateAsync();
+            }
+            else
+            {
+                _logger.Warning("YouTube search returned no candidates for {Track}; result was not cached", track.Title);
+            }
         }
 
-        return useChatGpt
-            ? await ApplyChatGptDecisionAsync(track, candidates, cancellationToken)
-            : candidates;
+        if (useChatGpt)
+        {
+            _logger.Information("GetCandidatesAsync: calling ApplyChatGptDecisionAsync");
+            var resolved = await ApplyChatGptDecisionAsync(track, candidates, cancellationToken);
+            _logger.Information("GetCandidatesAsync: ApplyChatGptDecisionAsync RETURNED {Count} candidates", resolved?.Count ?? 0);
+            return resolved;
+        }
+
+        _logger.Information("GetCandidatesAsync COMPLETED, returning {Count} candidates", candidates.Count);
+        return candidates;
     }
 
     private async Task<IReadOnlyList<YouTubeMatchCandidate>> ApplyChatGptDecisionAsync(
@@ -388,8 +614,12 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         IReadOnlyList<YouTubeMatchCandidate> candidates,
         CancellationToken cancellationToken)
     {
+        _logger.Debug("ApplyChatGptDecisionAsync called for {Track}. ChatGptEnabled={ChatGptEnabled}, candidateCount={Count}", track?.Title, _chatGptResolver.IsEnabled, candidates.Count);
         if (!_chatGptResolver.IsEnabled || candidates.Count == 0)
+        {
+            _logger.Debug("ApplyChatGptDecisionAsync skipped for {Track} (enabled={Enabled}, count={Count})", track?.Title, _chatGptResolver.IsEnabled, candidates.Count);
             return candidates;
+        }
 
         var decision = await _chatGptResolver.ResolveAsync(
             track.GetArtistsString(),
@@ -405,6 +635,10 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         if (decision is null)
             return candidates;
 
+        _aiPrepared[AiPreparationKey(track)] = 0;
+
+        _logger.Debug("ApplyChatGptDecisionAsync: resolver returned decision SelectedVideoId={Selected} (FromCache={FromCache}) for {Track}", decision.SelectedVideoId, decision.FromCache, track?.Title);
+
         if (decision.SelectedVideoId is null)
         {
             return candidates.Select(candidate => candidate with
@@ -412,7 +646,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
                 Confidence = candidate.Confidence == YouTubeMatchConfidence.High
                     ? YouTubeMatchConfidence.Medium
                     : candidate.Confidence,
-                Reason = $"ChatGPT kept VK: {decision.Reason}"
+                Reason = $"{_chatGptResolver.ActiveProviderName} kept VK: {SingleLine(decision.Reason)}"
             }).ToArray();
         }
 
@@ -425,7 +659,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
                     : YouTubeCandidateKind.Video,
                 Score = promotedScore,
                 Confidence = YouTubeMatchConfidence.High,
-                Reason = $"ChatGPT: {decision.Reason}"
+                Reason = $"{_chatGptResolver.ActiveProviderName}: {SingleLine(decision.Reason)}"
             }
             : candidate).ToArray();
     }
@@ -434,7 +668,10 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         PlaylistTrack track, IReadOnlyList<YouTubeSearchItem> results)
     {
         if (results.Count == 0)
+        {
+            _logger.Debug("Rank: no results to rank for {Track}", track?.Title);
             return [];
+        }
 
         var evaluations = results.Select(result => Evaluate(track, result)).ToArray();
         var maxViews = evaluations
@@ -445,9 +682,19 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         var candidates = evaluations
             .Select(evaluation => CreateCandidate(evaluation, maxViews))
             .ToArray();
-        return candidates
+
+        var sorted = candidates
             .OrderBy(candidate => candidate.Rank)
             .ToArray();
+
+        _logger.Debug("Rank: ranked {Count} results for {Track}", sorted.Length, track?.Title);
+        if (sorted.Length > 0)
+        {
+            _logger.Debug("Rank: top candidate: #{Rank} {Title} ({Kind}) - Score={Score}, Confidence={Confidence}",
+                sorted[0].Rank, sorted[0].Title, sorted[0].Kind, sorted[0].Score, sorted[0].Confidence);
+        }
+
+        return sorted;
     }
 
     private Evaluation Evaluate(PlaylistTrack track, YouTubeSearchItem result)
@@ -628,55 +875,50 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private async Task<IReadOnlyList<YouTubeSearchItem>> SearchAsync(
         string query, YouTubeSearchSort sort, CancellationToken cancellationToken)
     {
-        await _requestGate.WaitAsync(cancellationToken);
+        if (DateTimeOffset.UtcNow < _blockedUntil)
+            throw new YouTubeSearchCircuitOpenException(_blockedUntil);
+
         try
         {
-            if (DateTimeOffset.UtcNow < _blockedUntil)
-                throw new YouTubeSearchCircuitOpenException(_blockedUntil);
-
-            var wait = RequestInterval - (DateTimeOffset.UtcNow - _lastRequestAt);
-            if (wait > TimeSpan.Zero)
-                await Task.Delay(wait, cancellationToken);
-            _lastRequestAt = DateTimeOffset.UtcNow;
-
-            try
-            {
-                var results = await _searchService.SearchAsync(query, sort, cancellationToken);
-                _consecutiveFailures = 0;
-                return results;
-            }
-            catch (YouTubeSearchRateLimitedException)
-            {
-                _blockedUntil = DateTimeOffset.UtcNow + RateLimitCooldown;
-                throw new YouTubeSearchCircuitOpenException(_blockedUntil);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch
-            {
-                if (++_consecutiveFailures >= 3)
-                    _blockedUntil = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(5);
-                throw;
-            }
+            var results = await _searchService.SearchAsync(query, sort, cancellationToken);
+            _consecutiveFailures = 0;
+            return results;
         }
-        finally
+        catch (YouTubeSearchRateLimitedException)
         {
-            _requestGate.Release();
+            _blockedUntil = DateTimeOffset.UtcNow + RateLimitCooldown;
+            throw new YouTubeSearchCircuitOpenException(_blockedUntil);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            if (++_consecutiveFailures >= 3)
+                _blockedUntil = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(5);
+            throw;
         }
     }
 
     private async Task PlayAsync(YouTubeMatchCandidate candidate)
     {
         var track = _player.CurrentTrack;
+        _logger.Information("PlayAsync STARTED for video {VideoId} {Title}", candidate.VideoId, candidate.Title);
+
         if (!IsVkTrack(track) || track is null ||
             _browserPlayer.CurrentOwner == BrowserPlaybackOwner.MusicOrder)
+        {
+            _logger.Warning("PlayAsync: ABORTED - isVkTrack={IsVk}, track={Track}, owner={Owner}",
+                IsVkTrack(track), track?.Title, _browserPlayer.CurrentOwner);
             return;
+        }
 
         var position = ActiveSource == VkPlaybackSource.YouTube
             ? _browserPlayer.Position
             : _player.Position;
+
+        _logger.Information("PlayAsync: suppressing playback and loading video at position {Position}", position.TotalSeconds);
 
         // Suppression closes the race where PlayerService finishes opening the VK source
         // after this pause and calls MediaPlayer.Play() underneath the iframe.
@@ -692,8 +934,11 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
             _browserPlayer.SetMuted(_player.IsMuted);
         }
 
+        _logger.Information("PlayAsync: calling browserPlayer.Load for videoId {VideoId}", candidate.VideoId);
         _browserPlayer.Load(new YouTubeBrowserPlaybackRequest(candidate.VideoId, position, track,
             _browserPlayer.CreateRequestId(), BrowserPlaybackOwner.VkReplacement));
+
+        _logger.Information("PlayAsync: COMPLETED");
         await Task.CompletedTask;
     }
 
@@ -721,15 +966,16 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         ActiveSource = VkPlaybackSource.Vk;
         _player.Seek(position);
 
-        var fallback = _fallbackAttempts == 0
+        var fallback = _fallbackAttempts < 3
             ? BestPlaybackCandidate(Candidates.Where(candidate =>
-                candidate.Confidence == YouTubeMatchConfidence.High &&
                 !_failedVideos.Contains(candidate.VideoId)))
             : null;
         if (fallback is not null)
         {
             _fallbackAttempts++;
-            StatusText = $"Trying fallback YouTube #{fallback.Rank}";
+            StatusText = $"Trying fallback YouTube #{fallback.Rank} after: {message}";
+            _logger.Warning("YouTube candidate failed; trying fallback #{Rank} {VideoId}. Reason: {Reason}",
+                fallback.Rank, fallback.VideoId, message);
             await PlayAsync(fallback);
             return;
         }
@@ -737,6 +983,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         _player.IsPlaybackSuppressed = false;
         _player.Play();
         StatusText = $"YouTube failed ({message}) — playing VK";
+        _logger.Warning("All YouTube playback candidates failed; resumed VK at {Position}", position);
     }
 
     private void HandleOwnerChanged()
@@ -744,6 +991,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         if (ActiveSource == VkPlaybackSource.YouTube &&
             _browserPlayer.CurrentOwner != BrowserPlaybackOwner.VkReplacement)
             ActiveSource = VkPlaybackSource.Vk;
+        OnPropertyChanged(nameof(IsResolverVisible));
     }
 
     private bool HasCache(PlaylistTrack track)
@@ -751,6 +999,30 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         var key = TrackKey(track);
         return _manual.ContainsKey(key) || _cache.TryGetValue(key, out var cached) &&
             DateTimeOffset.UtcNow - cached.CreatedAt < CacheLifetime;
+    }
+
+    public async Task ClearCacheAsync()
+    {
+        _cache.Clear();
+        _aiPrepared.Clear();
+        _manual.Clear();
+        _failedVideos.Clear();
+        _lastAppliedCandidate = null;
+        SelectedCandidate = null;
+        Candidates.Clear();
+
+        try
+        {
+            if (File.Exists(_cachePath))
+                File.Delete(_cachePath);
+        }
+        catch (Exception e)
+        {
+            _logger.Warning(e, "Failed to delete VK YouTube cache");
+        }
+
+        StatusText = "YouTube resolve cache cleared";
+        await Task.CompletedTask;
     }
 
     private void LoadState()
@@ -784,7 +1056,8 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
             {
                 Searches = _cache.ToDictionary(p => p.Key, p => new PersistedSearch
                 {
-                    CreatedAt = p.Value.CreatedAt, Candidates = p.Value.Candidates.ToList()
+                    CreatedAt = p.Value.CreatedAt,
+                    Candidates = p.Value.Candidates.ToList()
                 }),
                 ManualSelections = new Dictionary<string, YouTubeMatchCandidate>(_manual,
                     StringComparer.Ordinal)
@@ -810,7 +1083,17 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private static string TrackKey(PlaylistTrack track) =>
         $"{Normalize(track.GetArtistsString())}|{Normalize(track.Title)}|{Math.Round(track.Data.Duration.TotalSeconds)}";
 
-    
+    private static string SingleLine(string? value) =>
+        string.Join(" ", (value ?? string.Empty)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private string AiPreparationKey(PlaylistTrack track)
+    {
+        var settings = _settingsManager.Settings.ChatGptResolver;
+        return $"{TrackKey(track)}|{settings.Provider}|search={settings.DeepSeekUseSearch}|deep={settings.DeepSeekUseDeepThink}";
+    }
+
+
 
     private static bool IsPlaybackCandidate(YouTubeMatchCandidate candidate) =>
         IsPlaybackKind(candidate.Kind) && candidate.Confidence != YouTubeMatchConfidence.Low;
@@ -974,11 +1257,11 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         return Regex.Replace(builder.ToString(), @"\s+", " ").Trim();
     }
 
-    
 
-    
 
-    
+
+
+
 
     private sealed record CacheEntry(DateTimeOffset CreatedAt,
         IReadOnlyList<YouTubeMatchCandidate> Candidates);

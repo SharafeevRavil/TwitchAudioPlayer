@@ -74,7 +74,7 @@ public partial class App : Application
         services.AddTransient<IWindowService, WindowService>();
         services.AddSingleton<BrowserPlayerService>();
         services.AddSingleton<BrowserPlayerWindowService>();
-        services.AddTransient<MusicOrderRepository>();
+        services.AddSingleton<MusicOrderRepository>();
 
         services.AddSingleton<DonationAlertsService>();
         services.AddTransient<DonationAlertsOrdersNotifier>();
@@ -88,6 +88,7 @@ public partial class App : Application
         services.AddSingleton<YouTubeSearchService>();
         services.AddSingleton<ChatGptResolverService>();
         services.AddSingleton<VkYouTubePlaybackService>();
+        services.AddSingleton<ApplicationStatusService>();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<VkAudioViewModel>();

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.ChatGpt;
+using TwitchAudioPlayer.WPF.Services.MusicOrder;
 
 namespace TwitchAudioPlayer.WPF.ViewModels.Modals;
 
@@ -11,8 +12,13 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
 {
     private readonly IUserSettingsManager _settingsManager;
     private readonly ChatGptResolverService _resolver;
+    private readonly VkYouTubePlaybackService _vkYouTube;
 
     [ObservableProperty] private bool _enabled;
+    [NotifyPropertyChangedFor(nameof(IsDeepSeekProvider))]
+    [ObservableProperty] private AiResolverProvider _provider;
+    [ObservableProperty] private bool _deepSeekUseSearch;
+    [ObservableProperty] private bool _deepSeekUseDeepThink;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNamedAccountMode))]
     [NotifyCanExecuteChangedFor(nameof(RemoveAccountCommand))]
@@ -38,12 +44,17 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
 
     public ChatGptSettingsViewModel(
         IUserSettingsManager settingsManager,
-        ChatGptResolverService resolver)
+        ChatGptResolverService resolver,
+        VkYouTubePlaybackService vkYouTube)
     {
         _settingsManager = settingsManager;
         _resolver = resolver;
+        _vkYouTube = vkYouTube;
         var settings = settingsManager.Settings.ChatGptResolver;
         Enabled = settings.Enabled;
+        Provider = settings.Provider;
+        DeepSeekUseSearch = settings.DeepSeekUseSearch;
+        DeepSeekUseDeepThink = settings.DeepSeekUseDeepThink;
         UseAnonymous = settings.UseAnonymous;
         ProjectName = settings.ProjectName;
         Accounts = new ObservableCollection<ChatGptAccountSettings>(settings.Accounts);
@@ -54,6 +65,9 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
     }
 
     public ObservableCollection<ChatGptAccountSettings> Accounts { get; }
+    public IReadOnlyList<AiResolverProvider> ProviderOptions { get; } =
+        Enum.GetValues<AiResolverProvider>();
+    public bool IsDeepSeekProvider => Provider == AiResolverProvider.DeepSeekWeb;
     public bool IsNamedAccountMode => !UseAnonymous;
 
     [RelayCommand]
@@ -93,8 +107,8 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
             }))
             return;
         Status = UseAnonymous
-            ? "Anonymous ChatGPT window opened. If ChatGPT asks for login, this region/session does not allow guest chat."
-            : "ChatGPT window opened. Sign in there, then press Refresh status.";
+            ? "Anonymous provider window opened. If it asks for login, this region/session does not allow guest chat."
+            : $"{ProviderName} window opened. Sign in there, then press Refresh status.";
     }
 
     [RelayCommand(CanExecute = nameof(HasResolverSession))]
@@ -109,7 +123,7 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
             return;
         Status = UseAnonymous
             ? "Anonymous profile logout page opened."
-            : $"Logout page opened for {SelectedAccount?.Name}.";
+            : $"Logout page opened for {SelectedAccount?.Name} in {ProviderName}.";
     }
 
     [RelayCommand(CanExecute = nameof(HasResolverSession))]
@@ -123,7 +137,7 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
             }))
             return;
         Status = UseAnonymous
-            ? "Anonymous ChatGPT profile reopened."
+            ? "Anonymous provider profile reopened."
             : "Previous session was logged out. Sign in with the required account.";
     }
 
@@ -138,8 +152,8 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
             }))
             return;
         Status = UseAnonymous
-            ? "Anonymous ChatGPT opened. Project setting is ignored without an account."
-            : "ChatGPT opened. Project selection is disabled for now; the resolver will use a regular chat.";
+            ? $"Anonymous {ProviderName} opened. Project setting is ignored without an account."
+            : $"{ProviderName} opened. Project selection is disabled for now; the resolver will use a regular chat.";
     }
 
     [RelayCommand(CanExecute = nameof(HasResolverSession))]
@@ -155,6 +169,19 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
         Status = "Saved resolver chat was reset. A new one will be created on the next track.";
     }
 
+    [RelayCommand]
+    private async Task ClearYouTubeResolveCacheAsync()
+    {
+        if (!await TryOperationAsync(async () =>
+            {
+                await _vkYouTube.ClearCacheAsync();
+                await _resolver.ClearDecisionCacheAsync();
+            }))
+            return;
+
+        Status = "YouTube resolve cache cleared: local search/ranking, manual choices, and AI decisions were deleted.";
+    }
+
     [RelayCommand(CanExecute = nameof(HasResolverSession))]
     private async Task RefreshStatusAsync()
     {
@@ -168,17 +195,20 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
             return;
         Status = UseAnonymous
             ? loggedIn
-                ? "Anonymous ChatGPT profile has a working composer."
-                : "Anonymous ChatGPT has no composer yet. It may require login or still be loading."
+                ? $"Anonymous {ProviderName} profile has a working composer."
+                : $"Anonymous {ProviderName} has no composer yet. It may require login or still be loading."
             : loggedIn
-                ? $"{SelectedAccount?.Name} is logged in."
-                : $"{SelectedAccount?.Name} is not logged in, or ChatGPT has not finished loading.";
+                ? $"{SelectedAccount?.Name} is logged in to {ProviderName}."
+                : $"{SelectedAccount?.Name} is not logged in, or {ProviderName} has not finished loading.";
     }
 
     protected override async Task SaveAsync()
     {
         var settings = _settingsManager.Settings.ChatGptResolver;
         settings.Enabled = Enabled;
+        settings.Provider = Provider;
+        settings.DeepSeekUseSearch = DeepSeekUseSearch;
+        settings.DeepSeekUseDeepThink = DeepSeekUseDeepThink;
         settings.UseAnonymous = UseAnonymous;
         settings.ProjectName = ProjectName.Trim();
         await PersistAccountsAsync();
@@ -196,11 +226,14 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
     private bool HasSelectedAccount() => !UseAnonymous && SelectedAccount is not null;
     private bool HasResolverSession() => UseAnonymous || SelectedAccount is not null;
     private Guid GetTargetAccountId() => UseAnonymous ? Guid.Empty : SelectedAccount?.Id ??
-        throw new InvalidOperationException("Select a ChatGPT account first");
+        throw new InvalidOperationException($"Select a {ProviderName} account first");
 
     private async Task ActivateSelectedAccountAsync()
     {
         var settings = _settingsManager.Settings.ChatGptResolver;
+        settings.Provider = Provider;
+        settings.DeepSeekUseSearch = DeepSeekUseSearch;
+        settings.DeepSeekUseDeepThink = DeepSeekUseDeepThink;
         settings.ProjectName = ProjectName.Trim();
         settings.UseAnonymous = UseAnonymous;
         settings.ActiveAccountId = UseAnonymous ? null : SelectedAccount?.Id;
@@ -211,6 +244,9 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
     private async Task PersistAccountsAsync()
     {
         var settings = _settingsManager.Settings.ChatGptResolver;
+        settings.Provider = Provider;
+        settings.DeepSeekUseSearch = DeepSeekUseSearch;
+        settings.DeepSeekUseDeepThink = DeepSeekUseDeepThink;
         settings.Accounts = Accounts.ToList();
         settings.ActiveAccountId = UseAnonymous ? null : SelectedAccount?.Id;
         await _settingsManager.SaveSettingsSilentlyAsync();
@@ -225,10 +261,16 @@ public partial class ChatGptSettingsViewModel : ModalViewModelBase, IDisposable
         }
         catch (Exception exception)
         {
-            Status = $"ChatGPT operation failed: {exception.Message}";
+            Status = $"{ProviderName} operation failed: {exception.Message}";
             return false;
         }
     }
+
+    private string ProviderName => Provider switch
+    {
+        AiResolverProvider.DeepSeekWeb => "DeepSeek",
+        _ => "ChatGPT"
+    };
 
     private void ResolverOnStatusChanged(object? sender, EventArgs e)
     {

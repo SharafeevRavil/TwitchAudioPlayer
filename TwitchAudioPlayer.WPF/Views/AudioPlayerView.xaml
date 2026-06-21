@@ -6,6 +6,7 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
              xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels"
+             xmlns:helpers="clr-namespace:TwitchAudioPlayer.WPF.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="100" d:DesignWidth="800"
              d:DataContext="{d:DesignInstance Type=viewModels:AudioPlayerViewModel, IsDesignTimeCreatable=True}"
@@ -13,8 +14,8 @@
     <Grid Visibility="{Binding IsTrackSet, Converter={StaticResource BoolToVisibilityConverter}}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="88" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <!-- Полоска проигрывания -->
         <Grid Grid.Row="0" Margin="0 5 0 0 ">
@@ -28,31 +29,29 @@
                        Margin="5,0,5,0" />
             <Slider Grid.Column="1" Minimum="0" Maximum="{Binding Duration.TotalSeconds}"
                     HorizontalAlignment="Stretch"
+                    Foreground="{Binding VolumeAccentBrush}"
                     Value="{Binding CurrentPosition}" />
             <TextBlock Grid.Column="2"
                        Text="{Binding Duration, Converter={StaticResource AudioDurationTimeSpanConverter}}"
                        Margin="5,0,5,0" />
         </Grid>
         <!-- Нижняя панель -->
-        <Grid Grid.Row="1" Margin="10,2,10,4"
-              Visibility="{Binding VkYouTube.IsAvailable, Converter={StaticResource BoolToVisibilityConverter}}">
+        <Grid Grid.Row="2" Margin="10,3,10,6"
+              Visibility="{Binding VkYouTube.IsResolverVisible, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="360" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="2*" MinWidth="150" />
+                <ColumnDefinition Width="3*" MinWidth="120" />
             </Grid.ColumnDefinitions>
             <CheckBox Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center"
                       Content="Auto YouTube"
                       IsChecked="{Binding VkYouTube.AutoPlayEnabled, Mode=TwoWay}" />
-            <ToggleButton Grid.Column="1" MinWidth="58" Padding="8,3" Content="VK"
-                          IsChecked="{Binding VkYouTube.IsVkSourceSelected, Mode=OneWay}"
-                          Command="{Binding VkYouTube.SwitchToVkCommand}" />
-            <ToggleButton Grid.Column="2" MinWidth="82" Padding="8,3" Content="YouTube"
+            <ToggleButton Grid.Column="1"
+                          Style="{StaticResource VkYouTubeSourceToggleStyle}"
                           IsChecked="{Binding VkYouTube.IsYouTubeSourceSelected, Mode=OneWay}"
-                          Command="{Binding VkYouTube.SwitchToYouTubeCommand}" />
-            <ComboBox Grid.Column="3" Margin="10,0" MinHeight="32" MaxDropDownHeight="360"
+                          Command="{Binding VkYouTube.ToggleSourceCommand}" />
+            <ComboBox Grid.Column="2" Margin="10,0" MinHeight="32" MaxDropDownHeight="360"
                       ItemsSource="{Binding VkYouTube.Candidates}"
                       SelectedItem="{Binding VkYouTube.SelectedCandidate, Mode=TwoWay}"
                       ToolTip="Choose another YouTube video">
@@ -87,15 +86,17 @@
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
-            <Grid Grid.Column="4">
+            <Grid Grid.Column="3" ClipToBounds="True">
                 <TextBlock VerticalAlignment="Center" Text="{Binding VkYouTube.StatusText}"
-                           TextTrimming="CharacterEllipsis"
+                           TextWrapping="NoWrap"
+                           helpers:MarqueeBehavior.IsEnabled="True"
                            Foreground="{DynamicResource MaterialDesignBodyLight}" />
                 <ProgressBar Height="2" VerticalAlignment="Bottom" IsIndeterminate="True"
+                             Foreground="{Binding VolumeAccentBrush}"
                              Visibility="{Binding VkYouTube.IsResolving, Converter={StaticResource BoolToVisibilityConverter}}" />
             </Grid>
         </Grid>
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="5*" />
                 <ColumnDefinition Width="*" />
@@ -114,14 +115,17 @@
             <!--Кнопки управления-->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Grid.Column="1">
                 <Button Command="{Binding PreviousTrackCommand}" Width="40" Height="40"
+                        Background="{Binding VolumeAccentBrush}"
                         Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
                     <materialDesign:PackIcon Kind="FastRewind" />
                 </Button>
                 <Button Command="{Binding PlayPauseCommand}" Width="40" Height="40" Margin="5,0"
+                        Background="{Binding VolumeAccentBrush}"
                         Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
                     <materialDesign:PackIcon Kind="{Binding PlayPauseIcon}" />
                 </Button>
                 <Button Command="{Binding NextTrackCommand}" Width="40" Height="40"
+                        Background="{Binding VolumeAccentBrush}"
                         Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
                     <materialDesign:PackIcon Kind="FastForward" />
                 </Button>

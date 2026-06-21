@@ -31,7 +31,13 @@ public class UserSettings
     public double VkVolume { get; set; } = 0.01;
     public double YouTubeVolume { get; set; } = 1;
     public bool BrowserPlayerTopmost { get; set; } = true;
+    public bool MainWindowTopmost { get; set; }
     public bool AutoPlayYouTubeForVk { get; set; }
+    // yt-dlp integration
+    public bool UseYtDlpForSearch { get; set; } = true;
+    public bool RotateYouTubeUserAgent { get; set; }
+    public bool UseYouTubeProxy { get; set; } = false;
+    public List<string> YouTubeProxyList { get; set; } = new();
     public ChatGptResolverSettings ChatGptResolver { get; set; } = new();
     public WindowBoundsSettings MainWindowBounds { get; set; } = new();
     public WindowBoundsSettings BrowserPlayerWindowBounds { get; set; } = new();
@@ -49,10 +55,19 @@ public class UserSettings
 public class ChatGptResolverSettings
 {
     public bool Enabled { get; set; }
+    public AiResolverProvider Provider { get; set; } = AiResolverProvider.ChatGptWeb;
+    public bool DeepSeekUseSearch { get; set; }
+    public bool DeepSeekUseDeepThink { get; set; }
     public bool UseAnonymous { get; set; }
     public string ProjectName { get; set; } = "TwitchAudioPlayer";
     public Guid? ActiveAccountId { get; set; }
     public List<ChatGptAccountSettings> Accounts { get; set; } = [];
+}
+
+public enum AiResolverProvider
+{
+    ChatGptWeb,
+    DeepSeekWeb
 }
 
 public class ChatGptAccountSettings
@@ -61,6 +76,7 @@ public class ChatGptAccountSettings
     public string Name { get; set; } = "ChatGPT account";
     public string? ConversationUrl { get; set; }
     public string? ConversationProjectName { get; set; }
+    public string? DeepSeekConversationUrl { get; set; }
 }
 
 public class WindowBoundsSettings

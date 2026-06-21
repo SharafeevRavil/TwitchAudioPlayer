@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="ChatGPT resolver settings"
+        Title="AI resolver settings"
         Width="860" Height="620" MinWidth="760" MinHeight="540"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource MaterialDesignWindow}">
@@ -14,9 +14,9 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="ChatGPT YouTube resolver" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="AI YouTube resolver" FontSize="24" FontWeight="SemiBold" />
             <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Opacity="0.75"
-                       Text="Experimental web automation through chatgpt.js. Named accounts and the no-account mode use isolated WebView2 profiles; login is always completed manually in ChatGPT when ChatGPT asks for it." />
+                       Text="Experimental web automation. ChatGPT and DeepSeek use isolated WebView2 profiles; login is always completed manually in the opened provider window." />
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -54,17 +54,31 @@
             </Grid>
 
             <StackPanel Grid.Column="2">
-                <CheckBox Content="Use ChatGPT to choose between the first five YouTube results"
+                <CheckBox Content="Use AI to choose between the first five YouTube results"
                           IsChecked="{Binding Enabled}" Margin="0,0,0,14" />
-                <CheckBox Content="Use ChatGPT without an account (guest/no-login mode, if ChatGPT allows it)"
+                <ComboBox ItemsSource="{Binding ProviderOptions}" SelectedItem="{Binding Provider}"
+                          materialDesign:HintAssist.Hint="Provider"
+                          Margin="0,0,0,14" />
+                <WrapPanel Margin="0,0,0,14">
+                    <CheckBox Content="DeepSeek Search"
+                              IsChecked="{Binding DeepSeekUseSearch}"
+                              IsEnabled="{Binding IsDeepSeekProvider}"
+                              Margin="0,0,18,0"
+                              ToolTip="Try to enable DeepSeek web search before sending resolver prompts." />
+                    <CheckBox Content="DeepSeek DeepThink / R1"
+                              IsChecked="{Binding DeepSeekUseDeepThink}"
+                              IsEnabled="{Binding IsDeepSeekProvider}"
+                              ToolTip="Try to enable DeepSeek's slower reasoning mode before sending resolver prompts." />
+                </WrapPanel>
+                <CheckBox Content="Use without an account (guest/no-login mode, if the provider allows it)"
                           IsChecked="{Binding UseAnonymous}" Margin="0,0,0,14" />
                 <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}"
                          IsEnabled="False"
-                         materialDesign:HintAssist.Hint="Project name (disabled for now)"
+                         materialDesign:HintAssist.Hint="ChatGPT project name (disabled for now)"
                          Margin="0,0,0,12" />
 
                 <WrapPanel Margin="0,0,0,10">
-                    <Button Content="Login / open ChatGPT" Command="{Binding LoginCommand}" Margin="0,0,8,8"
+                    <Button Content="Login / open provider" Command="{Binding LoginCommand}" Margin="0,0,8,8"
                             Style="{StaticResource MaterialDesignRaisedButton}" />
                     <Button Content="Logout" Command="{Binding LogoutCommand}" Margin="0,0,8,8"
                             Style="{StaticResource MaterialDesignOutlinedButton}" />
@@ -72,9 +86,11 @@
                             Style="{StaticResource MaterialDesignOutlinedButton}" />
                 </WrapPanel>
                 <WrapPanel Margin="0,0,0,10">
-                    <Button Content="Open ChatGPT / project" Command="{Binding OpenProjectCommand}" Margin="0,0,8,8"
+                    <Button Content="Open provider / project" Command="{Binding OpenProjectCommand}" Margin="0,0,8,8"
                             Style="{StaticResource MaterialDesignOutlinedButton}" />
                     <Button Content="Reset resolver chat" Command="{Binding ResetChatCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                    <Button Content="Clear YouTube resolve cache" Command="{Binding ClearYouTubeResolveCacheCommand}" Margin="0,0,8,8"
                             Style="{StaticResource MaterialDesignOutlinedButton}" />
                     <Button Content="Refresh status" Command="{Binding RefreshStatusCommand}" Margin="0,0,8,8"
                             Style="{StaticResource MaterialDesignOutlinedButton}" />
@@ -86,9 +102,8 @@
                 </Border>
 
                 <TextBlock TextWrapping="Wrap" Opacity="0.7">
-                    The resolver reuses one chat per named account and project. Guest/no-account mode uses a plain ChatGPT chat.
-                    If the track changes while ChatGPT is answering,
-                    the previous generation is stopped and its result is ignored. A successful decision is cached, so the
+                    The resolver reuses one chat per named account and provider. Guest/no-account mode uses a plain provider chat.
+                    Requests are queued so only one web prompt is active at a time. A successful decision is cached, so the
                     same track does not spend another web request.
                 </TextBlock>
             </StackPanel>

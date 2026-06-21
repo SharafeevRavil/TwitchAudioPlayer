@@ -16,6 +16,91 @@
             <converters:AudioDurationTimeSpanConverter x:Key="AudioDurationTimeSpanConverter" />
             <converters:AudioDurationSecondsConverter x:Key="AudioDurationSecondsConverter" />
             <converters:VideoTitleFontSizeConverter x:Key="VideoTitleFontSizeConverter" />
+
+            <Style x:Key="VkYouTubeSourceToggleStyle" TargetType="ToggleButton">
+                <Setter Property="Width" Value="92" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="#4A4A4A" />
+                <Setter Property="BorderBrush" Value="#9E9E9E" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Grid Width="{TemplateBinding Width}" Height="{TemplateBinding Height}">
+                                <Border x:Name="Track"
+                                        CornerRadius="15"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}" />
+                                <Grid Margin="10,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="VK"
+                                               FontWeight="Bold"
+                                               FontSize="10"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               Opacity="0.7" />
+                                    <materialDesign:PackIcon Grid.Column="1"
+                                                             Kind="Youtube"
+                                                             Width="16"
+                                                             Height="16"
+                                                             HorizontalAlignment="Right"
+                                                             VerticalAlignment="Center"
+                                                             Foreground="#FFFF0033"
+                                                             Opacity="0.75" />
+                                </Grid>
+                                <Border x:Name="Thumb"
+                                        Width="38"
+                                        Height="24"
+                                        Margin="3"
+                                        HorizontalAlignment="Left"
+                                        CornerRadius="12"
+                                        Background="#D0D0D0">
+                                    <Grid>
+                                        <TextBlock x:Name="ThumbVk"
+                                                   Text="VK"
+                                                   FontWeight="Bold"
+                                                   FontSize="10"
+                                                   Foreground="#404040"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                        <materialDesign:PackIcon x:Name="ThumbYouTube"
+                                                                 Kind="Youtube"
+                                                                 Width="16"
+                                                                 Height="16"
+                                                                 Foreground="White"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center"
+                                                                 Opacity="0" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Track" Property="Background" Value="#FF8A49E6" />
+                                    <Setter TargetName="Track" Property="BorderBrush" Value="#FF8A49E6" />
+                                    <Setter TargetName="Thumb" Property="Background" Value="#FFFF0033" />
+                                    <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                    <Setter TargetName="ThumbVk" Property="Opacity" Value="0" />
+                                    <Setter TargetName="ThumbYouTube" Property="Opacity" Value="1" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Track" Property="Opacity" Value="0.9" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Track" Property="Opacity" Value="0.45" />
+                                    <Setter TargetName="Thumb" Property="Opacity" Value="0.6" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

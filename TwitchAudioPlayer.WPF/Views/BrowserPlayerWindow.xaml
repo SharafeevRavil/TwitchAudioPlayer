@@ -4,13 +4,15 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:helpers="clr-namespace:TwitchAudioPlayer.WPF.Helpers"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
         Title="Twitch Audio Player Video"
         Width="960"
-        Height="706"
+        Height="746"
         MinWidth="320"
-        MinHeight="346"
+        MinHeight="300"
         WindowStyle="None"
         ResizeMode="CanResizeWithGrip"
         AllowsTransparency="False"
@@ -27,6 +29,7 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="74" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid x:Name="TopChrome"
@@ -56,23 +59,24 @@
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" />
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0"
-                            Visibility="{Binding VkYouTube.IsAvailable, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <ToggleButton MinWidth="42" Height="28" Padding="6,2" Content="VK"
-                                  IsChecked="{Binding VkYouTube.IsVkSourceSelected, Mode=OneWay}"
-                                  Command="{Binding VkYouTube.SwitchToVkCommand}" />
-                    <ToggleButton MinWidth="70" Height="28" Padding="6,2" Content="YouTube"
-                                  IsChecked="{Binding VkYouTube.IsYouTubeSourceSelected, Mode=OneWay}"
-                                  Command="{Binding VkYouTube.SwitchToYouTubeCommand}" />
-                </StackPanel>
-
-                <Button Grid.Column="3"
+                <Button Grid.Column="2"
                         Command="{Binding TogglePinCommand}"
                         Width="40"
                         Height="40"
                         ToolTip="Keep window above other apps"
                         Style="{StaticResource MaterialDesignIconButton}">
                     <materialDesign:PackIcon Kind="{Binding PinIcon}"
+                                             Foreground="#FF8A49E6"
+                                             Width="22"
+                                             Height="22" />
+                </Button>
+                <Button Grid.Column="3"
+                        Command="{Binding MinimizeCommand}"
+                        Width="40"
+                        Height="40"
+                        ToolTip="Minimize"
+                        Style="{StaticResource MaterialDesignIconButton}">
+                    <materialDesign:PackIcon Kind="WindowMinimize"
                                              Foreground="#FF8A49E6"
                                              Width="22"
                                              Height="22" />
@@ -89,13 +93,13 @@
                                              Height="22" />
                 </Button>
                 <Button Grid.Column="5"
-                        Command="{Binding MinimizeCommand}"
+                        Command="{Binding CloseApplicationCommand}"
                         Width="40"
                         Height="40"
-                        ToolTip="Minimize"
+                        ToolTip="Close application"
                         Style="{StaticResource MaterialDesignIconButton}">
-                    <materialDesign:PackIcon Kind="WindowMinimize"
-                                             Foreground="#FF8A49E6"
+                    <materialDesign:PackIcon Kind="Close"
+                                             Foreground="#FFFF3355"
                                              Width="22"
                                              Height="22" />
                 </Button>
@@ -138,22 +142,16 @@
                     Background="#FF262626"
                     Padding="18,8"
                     ClipToBounds="True">
-                <Canvas x:Name="TrackTitleViewport"
-                        ClipToBounds="True"
-                        Height="{Binding ElementName=TrackTitleTextBlock, Path=ActualHeight}">
+                <Grid x:Name="TrackTitleViewport" ClipToBounds="True">
                     <TextBlock x:Name="TrackTitleTextBlock"
-                               Canvas.Left="0"
-                               Canvas.Top="0"
                                Text="{Binding OverlayTitle}"
+                               HorizontalAlignment="Left"
                                Foreground="White"
                                FontWeight="SemiBold"
                                TextWrapping="NoWrap"
-                               FontSize="{Binding ElementName=VideoSurface, Path=ActualHeight, Converter={StaticResource VideoTitleFontSizeConverter}}">
-                        <TextBlock.RenderTransform>
-                            <TranslateTransform x:Name="TrackTitleTranslateTransform" />
-                        </TextBlock.RenderTransform>
-                    </TextBlock>
-                </Canvas>
+                               helpers:MarqueeBehavior.IsEnabled="True"
+                               FontSize="{Binding ElementName=VideoSurface, Path=ActualHeight, Converter={StaticResource VideoTitleFontSizeConverter}}" />
+                </Grid>
             </Border>
 
             <Grid x:Name="ControlsPanel"
@@ -181,6 +179,7 @@
                             Minimum="0"
                             Maximum="{Binding DurationSeconds}"
                             Value="{Binding CurrentPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Foreground="{Binding VolumeAccentBrush}"
                             VerticalAlignment="Center" />
                     <TextBlock Grid.Column="2"
                                Text="{Binding DurationText}"
@@ -227,6 +226,7 @@
                                 Width="40"
                                 Height="40"
                                 Margin="0,0,6,0"
+                                Background="{Binding VolumeAccentBrush}"
                                 Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
                             <materialDesign:PackIcon Kind="FastRewind" />
                         </Button>
@@ -234,12 +234,14 @@
                                 Width="40"
                                 Height="40"
                                 Margin="0,0,6,0"
+                                Background="{Binding VolumeAccentBrush}"
                                 Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
                             <materialDesign:PackIcon Kind="{Binding PlayPauseIcon}" />
                         </Button>
                         <Button Command="{Binding NextCommand}"
                                 Width="40"
                                 Height="40"
+                                Background="{Binding VolumeAccentBrush}"
                                 Style="{DynamicResource MaterialDesignFloatingActionLightButton}">
                             <materialDesign:PackIcon Kind="FastForward" />
                         </Button>
@@ -264,6 +266,60 @@
                                 Width="180"
                                 VerticalAlignment="Center" />
                     </StackPanel>
+                </Grid>
+            </Grid>
+
+            <Grid x:Name="ResolverPanel"
+                  Grid.Row="4"
+                  Height="68"
+                  Background="#FF3A3A3A"
+                  Margin="0"
+                  Visibility="{Binding VkYouTube.IsResolverVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="38" />
+                    <RowDefinition Height="30" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="70" />
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Row="0" Grid.Column="0" Margin="10,0,8,0" VerticalAlignment="Center"
+                          Content="Auto"
+                          ToolTip="Automatically play YouTube instead of VK"
+                          IsChecked="{Binding VkYouTube.AutoPlayEnabled, Mode=TwoWay}" />
+                <ToggleButton Grid.Row="0" Grid.Column="1"
+                              VerticalAlignment="Center"
+                              Style="{StaticResource VkYouTubeSourceToggleStyle}"
+                              IsChecked="{Binding VkYouTube.IsYouTubeSourceSelected, Mode=OneWay}"
+                              Command="{Binding VkYouTube.ToggleSourceCommand}" />
+                <ComboBox Grid.Row="0" Grid.Column="2" Margin="8,3,10,3" MinHeight="32" MaxDropDownHeight="360"
+                          ItemsSource="{Binding VkYouTube.Candidates}"
+                          SelectedItem="{Binding VkYouTube.SelectedCandidate, Mode=TwoWay}"
+                          ToolTip="Choose another YouTube video">
+                    <b:Interaction.Triggers>
+                        <b:EventTrigger EventName="SelectionChanged">
+                            <b:InvokeCommandAction Command="{Binding VkYouTube.SelectCandidateCommand}" />
+                        </b:EventTrigger>
+                    </b:Interaction.Triggers>
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel MaxWidth="420">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding MetricsText}" FontSize="10" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="10,0" ClipToBounds="True">
+                    <TextBlock Text="{Binding VkYouTube.StatusText}"
+                               VerticalAlignment="Center"
+                               TextWrapping="NoWrap"
+                               helpers:MarqueeBehavior.IsEnabled="True"
+                               Foreground="#DDFFFFFF" />
+                    <ProgressBar Height="2" VerticalAlignment="Bottom" IsIndeterminate="True"
+                                 Foreground="{Binding VolumeAccentBrush}"
+                                 Visibility="{Binding VkYouTube.IsResolving, Converter={StaticResource BoolToVisibilityConverter}}" />
                 </Grid>
             </Grid>
         </Grid>

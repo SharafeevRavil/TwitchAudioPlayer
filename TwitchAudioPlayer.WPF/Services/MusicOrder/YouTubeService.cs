@@ -32,26 +32,42 @@ public record YtTrackData(
 public class YouTubeService
 {
     private static readonly SemaphoreSlim Semaphore = new(5);
+    private static readonly TimeSpan MetadataRequestSpacing = TimeSpan.FromMilliseconds(900);
+    private static readonly TimeSpan MetadataFailureCooldown = TimeSpan.FromMinutes(5);
     private readonly ILogger _logger = Log.ForContext<YouTubeService>();
     private readonly IUserSettingsManager _settingsManager;
+    private readonly MusicOrderRepository _repository;
+    private readonly SemaphoreSlim _metadataGate = new(1, 1);
     private readonly Random _random = new();
     private readonly YoutubeClient _youtube = new();
+    private DateTimeOffset _lastMetadataRequestAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _metadataBlockedUntil = DateTimeOffset.MinValue;
+    private int _consecutiveMetadataFailures;
 
-    public YouTubeService(IUserSettingsManager settingsManager)
+    public YouTubeService(IUserSettingsManager settingsManager, MusicOrderRepository repository)
     {
         _settingsManager = settingsManager;
+        _repository = repository;
     }
 
     public async Task<(PlaylistTrack? Track, YtTrackError? Error)> GetPlaylistTrack(string url,
         CancellationToken cancellationToken = default)
     {
         var useBrowserPlayback = _settingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
+        var videoId = TryExtractYouTubeId(url);
+
+        if (useBrowserPlayback && videoId is { Length: > 0 } &&
+            _repository.GetYouTubeMetadata(videoId) is { } cachedMetadata)
+        {
+            _logger.Information("YouTube metadata cache hit for {VideoId}: {Title}", videoId, cachedMetadata.Title);
+            return (CreateTrackFromMetadata(url, cachedMetadata), null);
+        }
 
         _logger.Information("Start processing YouTube track");
         var (video, infoError) = await GetTrackInfo(url, cancellationToken);
         if (video == null)
         {
-            if (useBrowserPlayback && TryExtractYouTubeId(url) is { Length: > 0 } videoId)
+            if (useBrowserPlayback && videoId is { Length: > 0 })
             {
                 _logger.Warning("Failed to get YouTube video info, creating browser-only track for video ID: {VideoId}",
                     videoId);
@@ -79,6 +95,18 @@ public class YouTubeService
                 _logger.Error("Failed to get YouTube audio stream: {Title}", video.Title);
                 return (null, YtTrackError.FailedToGetStream);
             }
+        }
+
+        if (videoId is { Length: > 0 })
+        {
+            _repository.SaveYouTubeMetadata(new YouTubeMetadataCacheEntry(
+                videoId,
+                video.Title,
+                video.Author.ChannelTitle,
+                video.Description,
+                video.Thumbnails.FirstOrDefault()?.Url ?? string.Empty,
+                (video.Duration ?? TimeSpan.Zero).TotalSeconds,
+                DateTimeOffset.Now));
         }
 
         var fakeVkAlbum =
@@ -129,6 +157,21 @@ public class YouTubeService
         return new PlaylistTrack($"YouTube: {videoId}", url, fakeVkAlbum, artists, null, fakeVkData);
     }
 
+    private PlaylistTrack CreateTrackFromMetadata(string url, YouTubeMetadataCacheEntry metadata)
+    {
+        var fakeVkAlbum = new VkAlbumId(-1, -1, "", "", metadata.ThumbnailUrl, null);
+        var artists = new List<TrackArtist>
+        {
+            new(metadata.ChannelTitle, new ArtistId("", ArtistIdType.None))
+        };
+        var duration = metadata.DurationSeconds > 0
+            ? TimeSpan.FromSeconds(metadata.DurationSeconds)
+            : TimeSpan.FromMinutes(Math.Max(1, _settingsManager.Settings.MaxMinutesLength));
+        var fakeVkData = new YtTrackData(url, false, false, null, duration,
+            GetFakeId(), "", null, null, null);
+        return new PlaylistTrack(metadata.Title, metadata.Description, fakeVkAlbum, artists, null, fakeVkData);
+    }
+
     private static string? TryExtractYouTubeId(string uri)
     {
         if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed))
@@ -156,25 +199,58 @@ public class YouTubeService
 
     private async Task<(Video? Video, YtTrackError? Error)> GetTrackInfo(string url, CancellationToken cancellationToken = default)
     {
+        if (DateTimeOffset.UtcNow < _metadataBlockedUntil)
+        {
+            _logger.Warning("YouTube metadata requests paused until {BlockedUntil} after repeated failures",
+                _metadataBlockedUntil.LocalDateTime);
+            return (null, YtTrackError.FailedToGetInfo);
+        }
+
+        await _metadataGate.WaitAsync(cancellationToken);
         try
         {
-            return (await _youtube.Videos.GetAsync(url, cancellationToken), null);
+            if (DateTimeOffset.UtcNow < _metadataBlockedUntil)
+                return (null, YtTrackError.FailedToGetInfo);
+
+            var wait = MetadataRequestSpacing - (DateTimeOffset.UtcNow - _lastMetadataRequestAt);
+            if (wait > TimeSpan.Zero)
+                await Task.Delay(wait, cancellationToken);
+
+            var video = await _youtube.Videos.GetAsync(url, cancellationToken);
+            _consecutiveMetadataFailures = 0;
+            return (video, null);
         }
         catch (VideoUnavailableException e)
         {
             _logger.Error(e, "YouTube video is unavailable");
+            RegisterMetadataFailure();
             return (null, YtTrackError.YtNotFound);
         }
         catch (VideoRequiresPurchaseException e)
         {
             _logger.Error(e, "YouTube video requires purchase");
+            RegisterMetadataFailure();
             return (null, YtTrackError.YtNotFound);
         }
         catch (Exception e)
         {
             _logger.Error(e, "Error while getting YouTube track info");
+            RegisterMetadataFailure();
             return (null, YtTrackError.FailedToGetInfo);
         }
+        finally
+        {
+            _lastMetadataRequestAt = DateTimeOffset.UtcNow;
+            _metadataGate.Release();
+        }
+    }
+
+    private void RegisterMetadataFailure()
+    {
+        if (++_consecutiveMetadataFailures < 2)
+            return;
+        _metadataBlockedUntil = DateTimeOffset.UtcNow + MetadataFailureCooldown;
+        _logger.Warning("YouTube metadata circuit opened for {Cooldown}", MetadataFailureCooldown);
     }
 
     private async Task<IStreamInfo?> GetTrackStream(Video video, CancellationToken cancellationToken)
