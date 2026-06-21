@@ -1,0 +1,119 @@
+<Window x:Class="TwitchAudioPlayer.WPF.Views.Modals.ChatGptSettingsView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="AI resolver settings"
+        Width="860" Height="620" MinWidth="760" MinHeight="540"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource MaterialDesignWindow}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="AI YouTube resolver" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Opacity="0.75"
+                       Text="Experimental web automation. ChatGPT and DeepSeek use isolated WebView2 profiles; login is always completed manually in the opened provider window." />
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Accounts" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <ListBox Grid.Row="1" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}"
+                         IsEnabled="{Binding IsNamedAccountMode}"
+                         DisplayMemberPath="Name" MinHeight="220" />
+                <TextBox Grid.Row="2" Margin="0,10,0,6" Text="{Binding NewAccountName, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding IsNamedAccountMode}"
+                         materialDesign:HintAssist.Hint="New account name" />
+                <Grid Grid.Row="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Margin="0,0,4,0" Content="Add" Command="{Binding AddAccountCommand}"
+                            IsEnabled="{Binding IsNamedAccountMode}"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                    <Button Grid.Column="1" Margin="4,0,0,0" Content="Remove" Command="{Binding RemoveAccountCommand}"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                </Grid>
+            </Grid>
+
+            <StackPanel Grid.Column="2">
+                <CheckBox Content="Use AI to choose between the first five YouTube results"
+                          IsChecked="{Binding Enabled}" Margin="0,0,0,14" />
+                <ComboBox ItemsSource="{Binding ProviderOptions}" SelectedItem="{Binding Provider}"
+                          materialDesign:HintAssist.Hint="Provider"
+                          Margin="0,0,0,14" />
+                <WrapPanel Margin="0,0,0,14">
+                    <CheckBox Content="DeepSeek Search"
+                              IsChecked="{Binding DeepSeekUseSearch}"
+                              IsEnabled="{Binding IsDeepSeekProvider}"
+                              Margin="0,0,18,0"
+                              ToolTip="Try to enable DeepSeek web search before sending resolver prompts." />
+                    <CheckBox Content="DeepSeek DeepThink / R1"
+                              IsChecked="{Binding DeepSeekUseDeepThink}"
+                              IsEnabled="{Binding IsDeepSeekProvider}"
+                              ToolTip="Try to enable DeepSeek's slower reasoning mode before sending resolver prompts." />
+                </WrapPanel>
+                <CheckBox Content="Use without an account (guest/no-login mode, if the provider allows it)"
+                          IsChecked="{Binding UseAnonymous}" Margin="0,0,0,14" />
+                <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="False"
+                         materialDesign:HintAssist.Hint="ChatGPT project name (disabled for now)"
+                         Margin="0,0,0,12" />
+
+                <WrapPanel Margin="0,0,0,10">
+                    <Button Content="Login / open provider" Command="{Binding LoginCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignRaisedButton}" />
+                    <Button Content="Logout" Command="{Binding LogoutCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                    <Button Content="Relogin" Command="{Binding ReloginCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                </WrapPanel>
+                <WrapPanel Margin="0,0,0,10">
+                    <Button Content="Open provider / project" Command="{Binding OpenProjectCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                    <Button Content="Reset resolver chat" Command="{Binding ResetChatCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                    <Button Content="Clear YouTube resolve cache" Command="{Binding ClearYouTubeResolveCacheCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                    <Button Content="Refresh status" Command="{Binding RefreshStatusCommand}" Margin="0,0,8,8"
+                            Style="{StaticResource MaterialDesignOutlinedButton}" />
+                </WrapPanel>
+
+                <Border Padding="12" Margin="0,4,0,12" Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="4">
+                    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+                </Border>
+
+                <TextBlock TextWrapping="Wrap" Opacity="0.7">
+                    The resolver reuses one chat per named account and provider. Guest/no-account mode uses a plain provider chat.
+                    Requests are queued so only one web prompt is active at a time. A successful decision is cached, so the
+                    same track does not spend another web request.
+                </TextBlock>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0"
+                    Style="{StaticResource MaterialDesignFlatButton}" />
+            <Button Content="Save" Command="{Binding SaveCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}" />
+        </StackPanel>
+    </Grid>
+</Window>

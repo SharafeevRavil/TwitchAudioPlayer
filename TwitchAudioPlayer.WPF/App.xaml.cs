@@ -10,6 +10,7 @@ using TwitchAudioPlayer.WPF.MusicX.Services.Player;
 using TwitchAudioPlayer.WPF.MusicX.Services.Player.Sources;
 using TwitchAudioPlayer.WPF.MusicX.Services.Stores;
 using TwitchAudioPlayer.WPF.Services;
+using TwitchAudioPlayer.WPF.Services.ChatGpt;
 using TwitchAudioPlayer.WPF.Services.DonationAlerts;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using TwitchAudioPlayer.WPF.Services.Twitch;
@@ -73,7 +74,7 @@ public partial class App : Application
         services.AddTransient<IWindowService, WindowService>();
         services.AddSingleton<BrowserPlayerService>();
         services.AddSingleton<BrowserPlayerWindowService>();
-        services.AddTransient<MusicOrderRepository>();
+        services.AddSingleton<MusicOrderRepository>();
 
         services.AddSingleton<DonationAlertsService>();
         services.AddTransient<DonationAlertsOrdersNotifier>();
@@ -85,7 +86,9 @@ public partial class App : Application
         services.AddSingleton<MusicOrderService>();
         services.AddTransient<YouTubeService>();
         services.AddSingleton<YouTubeSearchService>();
+        services.AddSingleton<ChatGptResolverService>();
         services.AddSingleton<VkYouTubePlaybackService>();
+        services.AddSingleton<ApplicationStatusService>();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<VkAudioViewModel>();
@@ -95,6 +98,7 @@ public partial class App : Application
         services.AddTransient<YtAudioViewModel>();
         services.AddTransient<YtSettingsViewModel>();
         services.AddTransient<HotkeySettingsViewModel>();
+        services.AddTransient<ChatGptSettingsViewModel>();
 
         services.AddSingleton<MainWindow>();
         services.AddTransient<VkAudioView>();
@@ -106,6 +110,7 @@ public partial class App : Application
         services.AddTransient<YtAudioView>();
         services.AddTransient<YtSettingsView>();
         services.AddTransient<HotkeySettingsView>();
+        services.AddTransient<ChatGptSettingsView>();
 
         InitMusicX();
 

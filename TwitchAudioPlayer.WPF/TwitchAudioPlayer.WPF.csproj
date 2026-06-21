@@ -78,6 +78,10 @@
         <None Update="ffmpeg.exe">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="yt-dlp.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </None>
         <None Update="SLAVA_UKRAINI">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

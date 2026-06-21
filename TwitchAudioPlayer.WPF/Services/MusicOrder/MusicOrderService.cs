@@ -115,8 +115,9 @@ public class MusicOrderService
 
     private async Task<(List<MusicOrderWithTrack> Results, List<MusicOrder> Invalid)> GetMusicOrderWithTracks(List<MusicOrder> orders)
     {
-        var trackTasks = orders.Select(x => Task.Run(() => _youTubeService.GetPlaylistTrack(x.Uri)));
-        var tracks = await Task.WhenAll(trackTasks);
+        var tracks = new List<(PlaylistTrack? Track, YtTrackError? Error)>(orders.Count);
+        foreach (var order in orders)
+            tracks.Add(await _youTubeService.GetPlaylistTrack(order.Uri));
 
         var results = new List<MusicOrderWithTrack>();
         var invalidOrders = new List<MusicOrder>();

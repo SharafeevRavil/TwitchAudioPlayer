@@ -41,6 +41,21 @@
                           SelectedItem="{Binding YouTubePlaybackMode, Mode=TwoWay}" />
             </Grid>
 
+            <CheckBox Content="Prefer bundled yt-dlp for YouTube search (recommended)"
+                      IsChecked="{Binding UseYtDlpForSearch, Mode=TwoWay}"
+                      Margin="0,0,0,8" />
+
+            <CheckBox Content="Rotate User-Agent for yt-dlp requests"
+                      IsChecked="{Binding RotateYouTubeUserAgent, Mode=TwoWay}"
+                      Margin="0,0,0,8" />
+
+            <CheckBox Content="Use proxy list for YouTube search"
+                      IsChecked="{Binding UseYouTubeProxy, Mode=TwoWay}"
+                      Margin="0,0,0,8" />
+
+            <TextBlock Text="YouTube proxy list (one per line, e.g. http://host:port):" Margin="0,0,0,4" />
+            <TextBox Text="{Binding YouTubeProxyListText, Mode=TwoWay}" AcceptsReturn="True" Height="80" VerticalScrollBarVisibility="Auto" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+
             <CheckBox Content="Different sound level for different sources"
                       IsChecked="{Binding UseSeparateSourceVolumes, Mode=TwoWay}"
                       Margin="0,0,0,14" />

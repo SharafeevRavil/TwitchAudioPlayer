@@ -6,8 +6,26 @@ using TwitchAudioPlayer.WPF.Services;
 
 namespace TwitchAudioPlayer.WPF.ViewModels;
 
-public partial class MainWindowViewModel(IWindowService windowService) : ObservableObject
+public partial class MainWindowViewModel : ObservableObject
 {
+    private readonly IWindowService _windowService;
+    private readonly IUserSettingsManager _settingsManager;
+
+    [ObservableProperty] private bool _isPinned;
+    [ObservableProperty] private string _pinIcon = "PinOff";
+
+    public MainWindowViewModel(IWindowService windowService, IUserSettingsManager settingsManager,
+        ApplicationStatusService statusHistory)
+    {
+        _windowService = windowService;
+        _settingsManager = settingsManager;
+        StatusHistory = statusHistory;
+        IsPinned = settingsManager.Settings.MainWindowTopmost;
+        UpdatePinIcon();
+    }
+
+    public ApplicationStatusService StatusHistory { get; }
+
     [RelayCommand]
     private async Task OnWindowLoadedAsync()
     {
@@ -16,7 +34,31 @@ public partial class MainWindowViewModel(IWindowService windowService) : Observa
     [RelayCommand]
     private async Task Settings()
     {
-        windowService.OpenHotkeySettingsWindow();
+        _windowService.OpenHotkeySettingsWindow();
+    }
+
+    [RelayCommand]
+    private void ChatGptSettings()
+    {
+        _windowService.OpenChatGptSettingsWindow();
+    }
+
+    [RelayCommand]
+    private void TogglePin()
+    {
+        IsPinned = !IsPinned;
+    }
+
+    partial void OnIsPinnedChanged(bool value)
+    {
+        UpdatePinIcon();
+        _settingsManager.Settings.MainWindowTopmost = value;
+        _ = _settingsManager.SaveSettingsSilentlyAsync();
+    }
+
+    private void UpdatePinIcon()
+    {
+        PinIcon = IsPinned ? "Pin" : "PinOff";
     }
 
     [ObservableProperty] private string _version =

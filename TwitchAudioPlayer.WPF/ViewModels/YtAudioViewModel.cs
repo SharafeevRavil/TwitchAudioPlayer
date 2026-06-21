@@ -457,6 +457,22 @@ public partial class YtAudioViewModel : ObservableObject
         BrowserPlayerStatusText = message;
         if (_browserCurrentViewModel != null)
             _browserCurrentViewModel.SetPlaybackError(message);
+
+        if (IsEmbedTransportFailure(message))
+        {
+            _browserPlayer.Stop();
+            _player.IsPlaybackSuppressed = false;
+            ClearBrowserCurrentTrack();
+            BrowserPlayerStatusText = $"YouTube queue paused after a global embed failure: {message}";
+            if (_interceptedState != null)
+            {
+                var state = _interceptedState;
+                _interceptedState = null;
+                await _player.RestoreFromStateAsync(state);
+            }
+            return;
+        }
+
         if (_browserCurrentTrack != null)
             MarkTrackAsPlayed(_browserCurrentTrack);
 
@@ -479,6 +495,11 @@ public partial class YtAudioViewModel : ObservableObject
         }
     }
 
+    private static bool IsEmbedTransportFailure(string message) =>
+        message.Contains("error 101", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("error 150", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("error 153", StringComparison.OrdinalIgnoreCase);
+
     public async Task BrowserPositionChangedAsync(TimeSpan position, TimeSpan duration)
     {
         if (!IsBrowserPlaybackMode || !_isBrowserPlaying ||
@@ -494,7 +515,7 @@ public partial class YtAudioViewModel : ObservableObject
 
     private async Task CompleteBrowserTrackAndAdvanceAsync()
     {
-        if (!IsBrowserPlaybackMode || !_isBrowserPlaying ||
+        if (!IsBrowserPlaybackMode ||
             _browserPlayer.CurrentOwner != BrowserPlaybackOwner.MusicOrder)
             return;
 

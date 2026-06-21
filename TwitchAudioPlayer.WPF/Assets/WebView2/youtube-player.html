@@ -145,13 +145,18 @@
             return;
         }
 
-        player.loadVideoById({
-            videoId,
-            startSeconds: startSeconds || 0
-        });
-        clearYouTubeChrome();
-        applyPendingAudioState();
-        player.playVideo();
+        try {
+            player.loadVideoById({
+                videoId,
+                startSeconds: startSeconds || 0
+            });
+            clearYouTubeChrome();
+            applyPendingAudioState();
+            player.playVideo();
+        } catch (error) {
+            post("diagnostic", { message: `loadVideoById failed: ${error?.message || error}` });
+            post("error", { errorCode: 0 });
+        }
     }
 
     function normalizeVolume(volume) {
@@ -245,6 +250,16 @@
         postVolumeIfChanged(false);
         clearYouTubeChrome();
     }, 500);
+
+    window.addEventListener("error", event => {
+        post("diagnostic", { message: event.message || "page script error" });
+    });
+
+    window.setTimeout(() => {
+        if (!isReady) {
+            post("diagnostic", { message: "YouTube iframe API was not ready after 10 seconds" });
+        }
+    }, 10000);
 
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>

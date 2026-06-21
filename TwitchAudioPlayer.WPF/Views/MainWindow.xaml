@@ -6,10 +6,12 @@
         xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:viewModels="clr-namespace:TwitchAudioPlayer.WPF.ViewModels"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:helpers="clr-namespace:TwitchAudioPlayer.WPF.Helpers"
         mc:Ignorable="d"
         Title="Twitch Audio Player" Height="800" Width="1200" MinHeight="800" MinWidth="1200"
         Style="{StaticResource MaterialDesignWindow}"
         WindowStyle="None"
+        Topmost="{Binding IsPinned}"
         d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel, IsDesignTimeCreatable=True}"
         Loaded="Window_Loaded">
     <WindowChrome.WindowChrome>
@@ -71,11 +73,13 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="40" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="30" />
             </Grid.RowDefinitions>
             <!-- Панель заголовка -->
             <Grid Background="{DynamicResource MaterialDesignPaper}" Grid.Row="0" MouseDown="TitleBar_MouseDown">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -89,20 +93,29 @@
                             Style="{StaticResource MaterialDesignFlatButton}">
                         <materialDesign:PackIcon Kind="Settings" Width="25" Height="25" />
                     </Button>
+                    <Button Command="{Binding ChatGptSettingsCommand}" Width="60" Height="40"
+                            ToolTip="AI resolver settings"
+                            Style="{StaticResource MaterialDesignFlatButton}">
+                        <materialDesign:PackIcon Kind="Robot" Width="25" Height="25" />
+                    </Button>
                     <TextBlock Text="{Binding Version}" FontWeight="Bold" VerticalAlignment="Center" FontSize="10"
                                Margin="10, 5"
                                Foreground="{DynamicResource MaterialDesignBody}" />
                 </StackPanel>
 
-                <Button Click="Minimize_Click" Grid.Column="1" Width="50" Height="40"
+                <Button Command="{Binding TogglePinCommand}" Grid.Column="1" Width="50" Height="40"
+                        Style="{StaticResource MaterialDesignFlatButton}">
+                    <materialDesign:PackIcon Kind="{Binding PinIcon}" />
+                </Button>
+                <Button Click="Minimize_Click" Grid.Column="2" Width="50" Height="40"
                         Style="{StaticResource MaterialDesignFlatButton}">
                     <materialDesign:PackIcon Kind="WindowMinimize" />
                 </Button>
-                <Button Click="Maximize_Click" Grid.Column="2" Width="50" Height="40"
+                <Button Click="Maximize_Click" Grid.Column="3" Width="50" Height="40"
                         Style="{StaticResource MaterialDesignFlatButton}">
                     <materialDesign:PackIcon x:Name="MaximizeIcon" Kind="WindowMaximize" />
                 </Button>
-                <Button Click="Close_Click" Grid.Column="3" Width="50" Height="40"
+                <Button Click="Close_Click" Grid.Column="4" Width="50" Height="40"
                         Style="{StaticResource CustomCloseButtonStyle}">
                     <materialDesign:PackIcon Kind="Close" />
                 </Button>
@@ -133,6 +146,62 @@
                     <ContentControl Grid.Row="1" x:Name="AudioPlayer" />
                 </Grid>
             </Grid>
+            <Border Grid.Row="2"
+                    Background="{DynamicResource MaterialDesignPaper}"
+                    BorderBrush="#553F3F3F"
+                    BorderThickness="0,1,0,0"
+                    Padding="6,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding StatusHistory.CurrentSource, StringFormat={}{0}:}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="2,0,7,0" />
+                    <Grid Grid.Column="1" ClipToBounds="True" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding StatusHistory.CurrentText}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="NoWrap"
+                                   helpers:MarqueeBehavior.IsEnabled="True">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBodyLight}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StatusHistory.IsCurrentError}" Value="True">
+                                            <Setter Property="Foreground" Value="#FFFF3355" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <TextBlock Grid.Column="2" Text="{Binding StatusHistory.PositionText}"
+                               VerticalAlignment="Center" Margin="4,0" FontSize="10" />
+                    <Button Grid.Column="3" Command="{Binding StatusHistory.PreviousCommand}"
+                            Width="28" Height="28" Padding="0"
+                            Style="{StaticResource MaterialDesignIconButton}" ToolTip="Previous status">
+                        <materialDesign:PackIcon Kind="ChevronLeft" Width="18" Height="18" />
+                    </Button>
+                    <Button Grid.Column="4" Command="{Binding StatusHistory.NextCommand}"
+                            Width="28" Height="28" Padding="0"
+                            Style="{StaticResource MaterialDesignIconButton}" ToolTip="Next status">
+                        <materialDesign:PackIcon Kind="ChevronRight" Width="18" Height="18" />
+                    </Button>
+                    <Button Grid.Column="5" Command="{Binding StatusHistory.LatestCommand}"
+                            Width="28" Height="28" Padding="0"
+                            Style="{StaticResource MaterialDesignIconButton}" ToolTip="Latest status">
+                        <materialDesign:PackIcon Kind="SkipNext" Width="18" Height="18" />
+                    </Button>
+                </Grid>
+            </Border>
         </Grid>
     </materialDesign:Card>
 

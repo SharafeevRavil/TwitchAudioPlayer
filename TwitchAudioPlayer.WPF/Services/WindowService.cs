@@ -8,6 +8,7 @@ public class WindowService(IServiceProvider serviceProvider) : IWindowService
     public void OpenVkSettingsWindow() => serviceProvider.GetRequiredService<VkSettingsView>().ShowDialog();
     public void OpenYtSettingsWindow() => serviceProvider.GetRequiredService<YtSettingsView>().ShowDialog();
     public void OpenHotkeySettingsWindow() => serviceProvider.GetRequiredService<HotkeySettingsView>().ShowDialog();
+    public void OpenChatGptSettingsWindow() => serviceProvider.GetRequiredService<ChatGptSettingsView>().ShowDialog();
 }
 
 public interface IWindowService
@@ -15,4 +16,5 @@ public interface IWindowService
     void OpenVkSettingsWindow();
     void OpenYtSettingsWindow();
     void OpenHotkeySettingsWindow();
+    void OpenChatGptSettingsWindow();
 }

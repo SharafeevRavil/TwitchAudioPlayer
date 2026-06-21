@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -49,7 +50,6 @@ public partial class BrowserPlayerViewModel : ObservableObject
     [ObservableProperty] private string _artworkTitle = "";
     [ObservableProperty] private string _artworkArtist = "";
 
-    private const string CommonVolumeBrush = "#FF8A49E6";
     private const string VkVolumeBrush = "#FF2787F5";
     private const string YouTubeVolumeBrush = "#FFFF0033";
 
@@ -67,6 +67,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
 
         var dispatcher = Dispatcher.CurrentDispatcher;
         _browserPlayer.PropertyChanged += (_, _) => dispatcher.Invoke(UpdateState);
+        VkYouTube.PropertyChanged += (_, _) => dispatcher.Invoke(UpdateState);
         _userSettingsManager.SettingsChanged += (_, _) => dispatcher.Invoke(UpdateState);
         _player.TrackChangedEvent += (_, _) => dispatcher.Invoke(UpdateState);
         _player.PlayStateChangedEvent += (_, _) => dispatcher.Invoke(UpdateState);
@@ -158,12 +159,16 @@ public partial class BrowserPlayerViewModel : ObservableObject
         if (track is not null)
         {
             CancelDelayedArtworkHide();
-            var coverUrl = track.AlbumId?.BigCoverUrl
+            var replacement = _browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement
+                ? VkYouTube.SelectedCandidate
+                : null;
+            var coverUrl = replacement?.ThumbnailUrl
+                           ?? track.AlbumId?.BigCoverUrl
                            ?? track.AlbumId?.CoverUrl
                            ?? "pack://application:,,,/Assets/default.png";
             CurrentCoverUrl = coverUrl;
-            CurrentTitle = track.Title;
-            CurrentArtist = track.GetArtistsString();
+            CurrentTitle = replacement?.Title ?? track.Title;
+            CurrentArtist = replacement?.ChannelTitle ?? track.GetArtistsString();
             OverlayTitle = FormatTrackTitle(CurrentTitle, CurrentArtist);
             HeaderText = OverlayTitle;
             ArtworkCoverUrl = coverUrl;
@@ -358,11 +363,9 @@ public partial class BrowserPlayerViewModel : ObservableObject
 
     private void UpdateVolumeAccentBrush()
     {
-        VolumeAccentBrush = !_userSettingsManager.Settings.UseSeparateSourceVolumes
-            ? CommonVolumeBrush
-            : _browserPlayer.IsYouTubeActive
-                ? YouTubeVolumeBrush
-                : VkVolumeBrush;
+        VolumeAccentBrush = _browserPlayer.IsYouTubeActive
+            ? YouTubeVolumeBrush
+            : VkVolumeBrush;
     }
 
     [RelayCommand]
@@ -385,10 +388,19 @@ public partial class BrowserPlayerViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void CloseApplication() => Application.Current.Shutdown();
+
+    [RelayCommand]
     private async Task Previous()
     {
         if (_browserPlayer.IsYouTubeActive)
         {
+            if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement)
+            {
+                await VkYouTube.SkipReplacementPreviousAsync();
+                return;
+            }
+
             _browserPlayer.Seek(TimeSpan.Zero);
             return;
         }
@@ -401,6 +413,12 @@ public partial class BrowserPlayerViewModel : ObservableObject
     {
         if (_browserPlayer.IsYouTubeActive)
         {
+            if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement)
+            {
+                await VkYouTube.SkipReplacementNextAsync();
+                return;
+            }
+
             _browserPlayer.RequestSkip();
             return;
         }

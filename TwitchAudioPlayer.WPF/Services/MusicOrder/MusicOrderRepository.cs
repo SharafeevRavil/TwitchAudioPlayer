@@ -7,6 +7,15 @@ using System.Globalization;
 
 namespace TwitchAudioPlayer.WPF.Services.MusicOrder
 {
+    public sealed record YouTubeMetadataCacheEntry(
+        string VideoId,
+        string Title,
+        string ChannelTitle,
+        string Description,
+        string ThumbnailUrl,
+        double DurationSeconds,
+        DateTimeOffset UpdatedAt);
+
     public class MusicOrderRepository
     {
         private readonly string _connectionString =
@@ -31,6 +40,18 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder
             PRIMARY KEY (Uri, Date, Type))";
             using var command = new SQLiteCommand(createTableQuery, connection);
             command.ExecuteNonQuery();
+
+            const string createMetadataTableQuery = @"
+        CREATE TABLE IF NOT EXISTS YouTubeMetadata (
+            VideoId TEXT NOT NULL PRIMARY KEY,
+            Title TEXT NOT NULL,
+            ChannelTitle TEXT NOT NULL,
+            Description TEXT NOT NULL,
+            ThumbnailUrl TEXT NOT NULL,
+            DurationSeconds REAL NOT NULL,
+            UpdatedAt TEXT NOT NULL)";
+            using var metadataCommand = new SQLiteCommand(createMetadataTableQuery, connection);
+            metadataCommand.ExecuteNonQuery();
         }
 
 
@@ -165,6 +186,58 @@ namespace TwitchAudioPlayer.WPF.Services.MusicOrder
             command.Parameters.AddWithValue("@RoundTripDate", ToRoundTripDate(order.Date));
             command.Parameters.AddWithValue("@Type", (int)order.Type);
             return command.ExecuteScalar() != null;
+        }
+
+        public YouTubeMetadataCacheEntry? GetYouTubeMetadata(string videoId)
+        {
+            using var connection = new SQLiteConnection(_connectionString);
+            connection.Open();
+            const string selectQuery = @"
+        SELECT VideoId, Title, ChannelTitle, Description, ThumbnailUrl, DurationSeconds, UpdatedAt
+        FROM YouTubeMetadata
+        WHERE VideoId = @VideoId
+        LIMIT 1";
+            using var command = new SQLiteCommand(selectQuery, connection);
+            command.Parameters.AddWithValue("@VideoId", videoId);
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return new YouTubeMetadataCacheEntry(
+                reader["VideoId"].ToString() ?? videoId,
+                reader["Title"].ToString() ?? string.Empty,
+                reader["ChannelTitle"].ToString() ?? "YouTube",
+                reader["Description"].ToString() ?? string.Empty,
+                reader["ThumbnailUrl"].ToString() ?? string.Empty,
+                Convert.ToDouble(reader["DurationSeconds"], CultureInfo.InvariantCulture),
+                DateTimeOffset.Parse(reader["UpdatedAt"].ToString() ?? string.Empty, CultureInfo.InvariantCulture));
+        }
+
+        public void SaveYouTubeMetadata(YouTubeMetadataCacheEntry metadata)
+        {
+            using var connection = new SQLiteConnection(_connectionString);
+            connection.Open();
+            const string upsertQuery = @"
+        INSERT INTO YouTubeMetadata
+            (VideoId, Title, ChannelTitle, Description, ThumbnailUrl, DurationSeconds, UpdatedAt)
+        VALUES
+            (@VideoId, @Title, @ChannelTitle, @Description, @ThumbnailUrl, @DurationSeconds, @UpdatedAt)
+        ON CONFLICT(VideoId) DO UPDATE SET
+            Title = excluded.Title,
+            ChannelTitle = excluded.ChannelTitle,
+            Description = excluded.Description,
+            ThumbnailUrl = excluded.ThumbnailUrl,
+            DurationSeconds = excluded.DurationSeconds,
+            UpdatedAt = excluded.UpdatedAt";
+            using var command = new SQLiteCommand(upsertQuery, connection);
+            command.Parameters.AddWithValue("@VideoId", metadata.VideoId);
+            command.Parameters.AddWithValue("@Title", metadata.Title);
+            command.Parameters.AddWithValue("@ChannelTitle", metadata.ChannelTitle);
+            command.Parameters.AddWithValue("@Description", metadata.Description);
+            command.Parameters.AddWithValue("@ThumbnailUrl", metadata.ThumbnailUrl);
+            command.Parameters.AddWithValue("@DurationSeconds", metadata.DurationSeconds);
+            command.Parameters.AddWithValue("@UpdatedAt", ToStorageDate(metadata.UpdatedAt));
+            command.ExecuteNonQuery();
         }
 
         private static string ToStorageDate(DateTimeOffset date) =>

@@ -5,9 +5,9 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
+using Serilog;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
 using TwitchAudioPlayer.WPF.ViewModels;
@@ -16,6 +16,7 @@ namespace TwitchAudioPlayer.WPF.Views;
 
 public partial class BrowserPlayerWindow : Window
 {
+    private readonly ILogger _logger = Log.ForContext<BrowserPlayerWindow>();
     private const string PlayerHostName = "tap-player.local";
     private const string HideYouTubeChromeCss = """
         .ytp-chrome-top,
@@ -105,7 +106,7 @@ public partial class BrowserPlayerWindow : Window
     private const uint DwmWindowCornerDoNotRound = 1;
     private const uint DwmColorNone = 0xFFFFFFFE;
     private const double AspectRatio = 16d / 9d;
-    private const int DefaultPlayerChromeHeight = 166;
+    private const int DefaultPlayerChromeHeight = 222;
 
     private readonly BrowserPlayerService _browserPlayer;
     private readonly IUserSettingsManager _userSettingsManager;
@@ -116,6 +117,8 @@ public partial class BrowserPlayerWindow : Window
     private bool _isResizingToAspect;
     private bool _wasMinimizedWithMainWindow;
     private int _activeRequestId;
+    private int _playbackStartRequestId;
+    private TaskCompletionSource<bool>? _playbackStarted;
 
     public BrowserPlayerWindow(
         BrowserPlayerViewModel viewModel,
@@ -133,15 +136,14 @@ public partial class BrowserPlayerWindow : Window
         _viewModel.IsFullScreen = WindowState == WindowState.Maximized;
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
+        Activated += OnActivated;
         SizeChanged += OnSizeChanged;
         Closed += OnClosed;
         _viewModel.PinChanged += ViewModelOnPinChanged;
         _viewModel.MinimizeRequested += ViewModelOnMinimizeRequested;
         _viewModel.FullScreenRequested += ViewModelOnFullScreenRequested;
-        _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
-        TrackTitleTextBlock.Loaded += (_, _) => RestartTitleMarquee();
-        TrackTitleTextBlock.SizeChanged += (_, _) => RestartTitleMarquee();
-        TrackTitleStrip.SizeChanged += (_, _) => RestartTitleMarquee();
+        TrackTitleStrip.SizeChanged += (_, _) => ScheduleAspectCorrection();
+        ResolverPanel.IsVisibleChanged += (_, _) => ScheduleAspectCorrection();
         _browserPlayer.LoadRequested += BrowserPlayerOnLoadRequested;
         _browserPlayer.PlayRequested += BrowserPlayerOnPlayRequested;
         _browserPlayer.PauseRequested += BrowserPlayerOnPauseRequested;
@@ -151,25 +153,18 @@ public partial class BrowserPlayerWindow : Window
         _browserPlayer.MuteRequested += BrowserPlayerOnMuteRequested;
     }
 
-    private void ViewModelOnPinChanged(object? sender, bool value) => Topmost = value;
+    private void ViewModelOnPinChanged(object? sender, bool value) => ApplyTopmost(value);
 
     private void ViewModelOnMinimizeRequested(object? sender, EventArgs e) =>
         WindowState = WindowState.Minimized;
 
     private void ViewModelOnFullScreenRequested(object? sender, EventArgs e) => ToggleFullScreen();
 
-    private void ViewModelOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(BrowserPlayerViewModel.OverlayTitle))
-            Dispatcher.BeginInvoke(RestartTitleMarquee);
-    }
-
     private void OnClosed(object? sender, EventArgs e)
     {
         _viewModel.PinChanged -= ViewModelOnPinChanged;
         _viewModel.MinimizeRequested -= ViewModelOnMinimizeRequested;
         _viewModel.FullScreenRequested -= ViewModelOnFullScreenRequested;
-        _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
         _browserPlayer.LoadRequested -= BrowserPlayerOnLoadRequested;
         _browserPlayer.PlayRequested -= BrowserPlayerOnPlayRequested;
         _browserPlayer.PauseRequested -= BrowserPlayerOnPauseRequested;
@@ -207,6 +202,14 @@ public partial class BrowserPlayerWindow : Window
             source.AddHook(WindowProc);
             ApplyDwmWindowStyle(source.Handle);
         }
+
+        ApplyTopmost(_viewModel.IsPinned);
+    }
+
+    private void OnActivated(object? sender, EventArgs e)
+    {
+        if (_viewModel.IsPinned)
+            WindowTopmostHelper.Apply(this, true);
     }
 
     private static void ApplyDwmWindowStyle(IntPtr handle)
@@ -221,7 +224,15 @@ public partial class BrowserPlayerWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        ApplyTopmost(_viewModel.IsPinned);
+        ScheduleAspectCorrection();
         await ExecuteStartupAsync();
+    }
+
+    private void ApplyTopmost(bool value)
+    {
+        WindowTopmostHelper.Apply(this, value);
+        WindowTopmostHelper.ApplyAfterLayout(this, value);
     }
 
     private async Task ExecuteStartupAsync()
@@ -239,6 +250,12 @@ public partial class BrowserPlayerWindow : Window
     private async void BrowserPlayerOnLoadRequested(object? sender, YouTubeBrowserPlaybackRequest e)
     {
         _activeRequestId = e.RequestId;
+        _playbackStartRequestId = e.RequestId;
+        _playbackStarted?.TrySetCanceled();
+        _playbackStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _logger.Information(
+            "Browser player load request {RequestId}: video={VideoId}, start={StartSeconds:0.###}, owner={Owner}",
+            e.RequestId, e.VideoId, e.StartPosition.TotalSeconds, e.Owner);
         await ExecutePlayerCommandAsync(
             $"load({JsonSerializer.Serialize(e.VideoId)}, {FormatSeconds(e.StartPosition)}, {e.RequestId})",
             requestId: e.RequestId);
@@ -250,6 +267,7 @@ public partial class BrowserPlayerWindow : Window
             _browserPlayer.IsMuted ? "mute()" : "unMute()",
             reportFailure: false,
             requestId: e.RequestId);
+        _ = MonitorPlaybackStartAsync(e.RequestId, e.VideoId, _playbackStarted);
     }
 
     private async void BrowserPlayerOnPlayRequested(object? sender, EventArgs e)
@@ -265,7 +283,39 @@ public partial class BrowserPlayerWindow : Window
     private async void BrowserPlayerOnStopRequested(object? sender, EventArgs e)
     {
         _activeRequestId = 0;
+        _playbackStartRequestId = 0;
+        _playbackStarted?.TrySetCanceled();
         await ExecutePlayerCommandAsync("stop()", reportFailure: false);
+    }
+
+    private async Task MonitorPlaybackStartAsync(
+        int requestId,
+        string videoId,
+        TaskCompletionSource<bool> started)
+    {
+        try
+        {
+            var timeout = Task.Delay(TimeSpan.FromSeconds(18));
+            var completed = await Task.WhenAny(started.Task, timeout);
+            if (requestId != _activeRequestId || requestId != _playbackStartRequestId)
+                return;
+
+            if (completed == timeout)
+            {
+                _logger.Warning("Browser player did not start request {RequestId}, video {VideoId}, within 18 seconds",
+                    requestId, videoId);
+                started.TrySetResult(false);
+                _browserPlayer.ReportFailure("YouTube iframe did not start within 18 seconds");
+                return;
+            }
+
+            if (await started.Task)
+                _logger.Information("Browser player started request {RequestId}, video {VideoId}", requestId, videoId);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded load/stop.
+        }
     }
 
     private async void BrowserPlayerOnSeekRequested(object? sender, TimeSpan e)
@@ -288,14 +338,26 @@ public partial class BrowserPlayerWindow : Window
         try
         {
             await EnsureWebViewAsync();
-            await WaitForPageAsync();
+            try
+            {
+                await WaitForPageAsync();
+            }
+            catch (TimeoutException)
+            {
+                _logger.Warning("Local player navigation is still pending; waiting for the iframe API bridge");
+                await _pageLoaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            }
             if (requestId is not null && requestId.Value != _activeRequestId)
                 return;
 
-            await YoutubeWebView.ExecuteScriptAsync($"window.tapPlayer && window.tapPlayer.{command};");
+            var scriptResult = await YoutubeWebView.ExecuteScriptAsync(
+                $"window.tapPlayer ? (window.tapPlayer.{command}, true) : false;");
+            if (scriptResult == "false")
+                throw new InvalidOperationException("local YouTube player bridge is unavailable");
         }
         catch (Exception ex)
         {
+            _logger.Warning(ex, "Browser player command failed: {Command}", command);
             if (reportFailure && (requestId is null || requestId.Value == _activeRequestId))
                 _browserPlayer.ReportFailure($"YouTube browser player failed: {ex.Message}");
         }
@@ -320,10 +382,13 @@ public partial class BrowserPlayerWindow : Window
 
     private async Task InitializeWebViewAsync()
     {
+        _browserPlayer.StatusText = "Starting YouTube WebView2...";
+        _logger.Information("Initializing browser player WebView2. Runtime={Runtime}",
+            CoreWebView2Environment.GetAvailableBrowserVersionString());
         if (YoutubeWebView.CoreWebView2 is null)
         {
             var options = new CoreWebView2EnvironmentOptions(
-                "--disable-gpu --disable-gpu-compositing --disable-accelerated-video-decode");
+                "--disable-quic --disable-gpu --disable-gpu-compositing --disable-accelerated-video-decode");
             var environment = await CreateWebViewEnvironmentAsync(options);
             await YoutubeWebView.EnsureCoreWebView2Async(environment);
         }
@@ -337,6 +402,7 @@ public partial class BrowserPlayerWindow : Window
         YoutubeWebView.CoreWebView2.FrameCreated += CoreWebView2OnFrameCreated;
         await YoutubeWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(GetHideYouTubeChromeScript());
         YoutubeWebView.CoreWebView2.WebMessageReceived += CoreWebView2OnWebMessageReceived;
+        YoutubeWebView.CoreWebView2.ProcessFailed += CoreWebView2OnProcessFailed;
         YoutubeWebView.NavigationCompleted += YoutubeWebViewOnNavigationCompleted;
         YoutubeWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             PlayerHostName,
@@ -346,6 +412,14 @@ public partial class BrowserPlayerWindow : Window
         _pageLoaded = NewPageLoadedSource();
         YoutubeWebView.Source = GetPlayerPageUri();
         _webViewInitialized = true;
+    }
+
+    private void CoreWebView2OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
+    {
+        _logger.Error("Browser player WebView2 process failed: {Kind}; reason={Reason}; exit={ExitCode}",
+            e.ProcessFailedKind, e.Reason, e.ExitCode);
+        if (_activeRequestId != 0)
+            _browserPlayer.ReportFailure($"YouTube WebView2 process failed: {e.ProcessFailedKind}");
     }
 
     private void CoreWebView2OnFrameCreated(object? sender, CoreWebView2FrameCreatedEventArgs e)
@@ -377,9 +451,16 @@ public partial class BrowserPlayerWindow : Window
     private void YoutubeWebViewOnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         if (e.IsSuccess)
+        {
+            _logger.Information("Browser player local page loaded");
+            _browserPlayer.StatusText = "YouTube WebView2 page is loaded";
             _pageLoaded.TrySetResult();
+        }
         else
+        {
+            _logger.Warning("Browser player navigation failed: {Status}", e.WebErrorStatus);
             _pageLoaded.TrySetException(new InvalidOperationException($"navigation failed: {e.WebErrorStatus}"));
+        }
     }
 
     private void CoreWebView2OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -396,6 +477,8 @@ public partial class BrowserPlayerWindow : Window
             switch (type)
             {
                 case "ready":
+                    _logger.Information("YouTube iframe API is ready");
+                    _pageLoaded.TrySetResult();
                     _browserPlayer.PlayerReady();
                     break;
                 case "ended":
@@ -403,9 +486,17 @@ public partial class BrowserPlayerWindow : Window
                     break;
                 case "state":
                     if (root.TryGetProperty("state", out var state))
-                        _browserPlayer.ReportPlaybackState(state.GetInt32() is 1 or 3);
+                    {
+                        var stateValue = state.GetInt32();
+                        if (stateValue is 1 or 3)
+                            _playbackStarted?.TrySetResult(true);
+                        _logger.Debug("YouTube iframe state {State} for request {RequestId}",
+                            stateValue, _activeRequestId);
+                        _browserPlayer.ReportPlaybackState(stateValue is 1 or 3);
+                    }
                     break;
                 case "position":
+                    _playbackStarted?.TrySetResult(true);
                     _browserPlayer.ReportPosition(
                         TimeSpan.FromSeconds(root.GetProperty("position").GetDouble()),
                         TimeSpan.FromSeconds(root.GetProperty("duration").GetDouble()));
@@ -419,7 +510,16 @@ public partial class BrowserPlayerWindow : Window
                     var errorCode = root.TryGetProperty("errorCode", out var error)
                         ? error.GetInt32()
                         : 0;
-                    _browserPlayer.ReportFailure(GetYouTubeErrorMessage(errorCode));
+                    _playbackStarted?.TrySetResult(false);
+                    var message = GetYouTubeErrorMessage(errorCode);
+                    _logger.Warning("YouTube iframe error {ErrorCode} for request {RequestId}: {Message}",
+                        errorCode, _activeRequestId, message);
+                    _browserPlayer.ReportFailure(message);
+                    break;
+                case "diagnostic":
+                    _logger.Warning("YouTube iframe diagnostic for request {RequestId}: {Message}",
+                        _activeRequestId,
+                        root.TryGetProperty("message", out var diagnostic) ? diagnostic.GetString() : "unknown");
                     break;
             }
         }
@@ -450,6 +550,27 @@ public partial class BrowserPlayerWindow : Window
         {
             var targetHeight = Width / AspectRatio + GetPlayerChromeHeight();
             if (Math.Abs(Height - targetHeight) > 1)
+                Height = Math.Max(MinHeight, targetHeight);
+        }
+        finally
+        {
+            _isResizingToAspect = false;
+        }
+    }
+
+    private void ScheduleAspectCorrection() =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(CorrectAspectRatio));
+
+    private void CorrectAspectRatio()
+    {
+        if (_isResizingToAspect || WindowState != WindowState.Normal || ActualWidth <= 0)
+            return;
+
+        _isResizingToAspect = true;
+        try
+        {
+            var targetHeight = ActualWidth / AspectRatio + GetPlayerChromeHeight();
+            if (Math.Abs(ActualHeight - targetHeight) > 0.5)
                 Height = Math.Max(MinHeight, targetHeight);
         }
         finally
@@ -490,25 +611,25 @@ public partial class BrowserPlayerWindow : Window
                 rect.Right = rect.Left + targetWidth;
                 break;
             case WmszTopLeft:
-                if (width / (double)height > AspectRatio)
+                if (width / (double)videoHeight > AspectRatio)
                     rect.Left = rect.Right - targetWidth;
                 else
                     rect.Top = rect.Bottom - targetHeight;
                 break;
             case WmszTopRight:
-                if (width / (double)height > AspectRatio)
+                if (width / (double)videoHeight > AspectRatio)
                     rect.Right = rect.Left + targetWidth;
                 else
                     rect.Top = rect.Bottom - targetHeight;
                 break;
             case WmszBottomLeft:
-                if (width / (double)height > AspectRatio)
+                if (width / (double)videoHeight > AspectRatio)
                     rect.Left = rect.Right - targetWidth;
                 else
                     rect.Bottom = rect.Top + targetHeight;
                 break;
             case WmszBottomRight:
-                if (width / (double)height > AspectRatio)
+                if (width / (double)videoHeight > AspectRatio)
                     rect.Right = rect.Left + targetWidth;
                 else
                     rect.Bottom = rect.Top + targetHeight;
@@ -518,7 +639,8 @@ public partial class BrowserPlayerWindow : Window
 
     private double GetPlayerChromeHeight()
     {
-        var actualHeight = TopChrome.ActualHeight + TrackTitleStrip.ActualHeight + ControlsPanel.ActualHeight;
+        var actualHeight = TopChrome.ActualHeight + TrackTitleStrip.ActualHeight + ControlsPanel.ActualHeight +
+                           ResolverPanel.ActualHeight;
         return actualHeight > 0 ? actualHeight : DefaultPlayerChromeHeight;
     }
 
@@ -536,39 +658,6 @@ public partial class BrowserPlayerWindow : Window
         WindowState = WindowState == WindowState.Maximized
             ? WindowState.Normal
             : WindowState.Maximized;
-    }
-
-    private void RestartTitleMarquee()
-    {
-        TrackTitleTranslateTransform.BeginAnimation(TranslateTransform.XProperty, null);
-        TrackTitleTranslateTransform.X = 0;
-        TrackTitleTextBlock.ClearValue(WidthProperty);
-
-        TrackTitleTextBlock.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-
-        var availableWidth = TrackTitleViewport.ActualWidth;
-        var textWidth = TrackTitleTextBlock.DesiredSize.Width;
-        if (availableWidth <= 0 || textWidth <= availableWidth + 1)
-            return;
-
-        TrackTitleTextBlock.Width = textWidth;
-        var distance = textWidth - availableWidth + 64;
-        var hold = TimeSpan.FromSeconds(1.4);
-        var travel = TimeSpan.FromSeconds(Math.Clamp(distance / 42d, 5, 18));
-        var resetHold = TimeSpan.FromSeconds(0.8);
-        var total = hold + travel + resetHold;
-
-        var animation = new DoubleAnimationUsingKeyFrames
-        {
-            RepeatBehavior = RepeatBehavior.Forever
-        };
-
-        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        animation.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(hold)));
-        animation.KeyFrames.Add(new LinearDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(hold + travel)));
-        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(total)));
-
-        TrackTitleTranslateTransform.BeginAnimation(TranslateTransform.XProperty, animation);
     }
 
     private static string GetPlayerPageFolder() =>
@@ -599,8 +688,14 @@ public partial class BrowserPlayerWindow : Window
         }
     }
 
-    private static Uri GetPlayerPageUri() =>
-        new($"https://{PlayerHostName}/youtube-player.html");
+    private static Uri GetPlayerPageUri()
+    {
+        var playerPage = Path.Combine(GetPlayerPageFolder(), "youtube-player.html");
+        var assetVersion = File.Exists(playerPage)
+            ? File.GetLastWriteTimeUtc(playerPage).Ticks
+            : 0;
+        return new Uri($"https://{PlayerHostName}/youtube-player.html?v={assetVersion}");
+    }
 
     private static string FormatSeconds(TimeSpan time) =>
         FormatNumber(time.TotalSeconds);
@@ -615,6 +710,7 @@ public partial class BrowserPlayerWindow : Window
             5 => "YouTube player error 5: this video cannot be played in the HTML5 player.",
             100 => "YouTube player error 100: video not found, private, or removed.",
             101 or 150 => $"YouTube player error {errorCode}: owner disabled embedded playback. Open on YouTube.",
+            153 => "YouTube player error 153: embedded playback could not identify the client/referrer.",
             _ => errorCode == 0
                 ? "YouTube player error: unknown playback error."
                 : $"YouTube player error {errorCode}: playback failed."
