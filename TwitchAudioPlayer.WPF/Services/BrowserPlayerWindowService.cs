@@ -26,13 +26,8 @@ public sealed class BrowserPlayerWindowService(BrowserPlayerWindow window)
 
     public void SyncWithMainWindowState(WindowState state)
     {
-        if (state == WindowState.Minimized)
-        {
-            window.MinimizeWithMainWindow();
-            return;
-        }
-
-        window.RestoreWithMainWindow();
+        // The browser player is captured by OBS as an independent window.
+        // Keep its minimize/restore lifecycle separate from the main window.
     }
 
     private void PutPlayerAfterMainWindow(Window owner)

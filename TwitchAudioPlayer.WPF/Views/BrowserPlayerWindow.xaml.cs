@@ -92,7 +92,9 @@ public partial class BrowserPlayerWindow : Window
 
         """;
 
+    private const int WmSysCommand = 0x0112;
     private const int WmSizing = 0x0214;
+    private const int ScMinimize = 0xF020;
     private const int WmszLeft = 1;
     private const int WmszRight = 2;
     private const int WmszTop = 3;
@@ -115,7 +117,9 @@ public partial class BrowserPlayerWindow : Window
     private Task? _webViewInitializationTask;
     private bool _webViewInitialized;
     private bool _isResizingToAspect;
-    private bool _wasMinimizedWithMainWindow;
+    private bool _isParkedForObsCapture;
+    private WindowState _windowStateBeforeParking = WindowState.Normal;
+    private System.Windows.Rect? _boundsBeforeParking;
     private int _activeRequestId;
     private int _playbackStartRequestId;
     private TaskCompletionSource<bool>? _playbackStarted;
@@ -156,7 +160,7 @@ public partial class BrowserPlayerWindow : Window
     private void ViewModelOnPinChanged(object? sender, bool value) => ApplyTopmost(value);
 
     private void ViewModelOnMinimizeRequested(object? sender, EventArgs e) =>
-        WindowState = WindowState.Minimized;
+        ParkForObsCapture();
 
     private void ViewModelOnFullScreenRequested(object? sender, EventArgs e) => ToggleFullScreen();
 
@@ -174,22 +178,59 @@ public partial class BrowserPlayerWindow : Window
         _browserPlayer.MuteRequested -= BrowserPlayerOnMuteRequested;
     }
 
-    public void MinimizeWithMainWindow()
+    public void ParkForObsCapture()
     {
-        if (_viewModel.IsPinned || WindowState == WindowState.Minimized)
+        if (_isParkedForObsCapture)
             return;
 
-        _wasMinimizedWithMainWindow = true;
-        WindowState = WindowState.Minimized;
+        _isParkedForObsCapture = true;
+        _windowStateBeforeParking = WindowState;
+        _boundsBeforeParking = WindowState == WindowState.Normal
+            ? new System.Windows.Rect(Left, Top, Width, Height)
+            : RestoreBounds;
+
+        WindowState = WindowState.Normal;
+        var virtualRight = SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth;
+        var virtualBottom = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight;
+        Left = virtualRight + 64;
+        Top = virtualBottom + 64;
+        ActivateFallbackWindow();
     }
 
-    public void RestoreWithMainWindow()
+    public void RestoreFromObsCaptureParking()
     {
-        if (!_wasMinimizedWithMainWindow)
+        if (!_isParkedForObsCapture)
             return;
 
-        _wasMinimizedWithMainWindow = false;
-        WindowState = WindowState.Normal;
+        _isParkedForObsCapture = false;
+        if (_boundsBeforeParking is { } bounds)
+        {
+            Left = bounds.Left;
+            Top = bounds.Top;
+            Width = Math.Max(MinWidth, bounds.Width);
+            Height = Math.Max(MinHeight, bounds.Height);
+            _boundsBeforeParking = null;
+        }
+
+        WindowState = _windowStateBeforeParking == WindowState.Maximized
+            ? WindowState.Maximized
+            : WindowState.Normal;
+    }
+
+    private void ActivateFallbackWindow()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            if (!_isParkedForObsCapture)
+                return;
+
+            var fallbackWindow = Application.Current.Windows
+                .OfType<Window>()
+                .FirstOrDefault(window => window != this &&
+                                          window.IsVisible &&
+                                          window.WindowState != WindowState.Minimized);
+            fallbackWindow?.Activate();
+        }));
     }
 
     private static TaskCompletionSource NewPageLoadedSource() =>
@@ -208,6 +249,7 @@ public partial class BrowserPlayerWindow : Window
 
     private void OnActivated(object? sender, EventArgs e)
     {
+        RestoreFromObsCaptureParking();
         if (_viewModel.IsPinned)
             WindowTopmostHelper.Apply(this, true);
     }
@@ -235,6 +277,23 @@ public partial class BrowserPlayerWindow : Window
         WindowTopmostHelper.ApplyAfterLayout(this, value);
     }
 
+    private void EnsureVisibleForObsCapture(BrowserPlaybackOwner owner)
+    {
+        if (owner != BrowserPlaybackOwner.MusicOrder)
+            return;
+
+        RestoreFromObsCaptureParking();
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+
+        if (!IsVisible)
+            Show();
+
+        _logger.Information(
+            "Prepared browser player window for OBS capture: owner={Owner}, state={State}, left={Left:0.##}, top={Top:0.##}, width={Width:0.##}, height={Height:0.##}",
+            owner, WindowState, Left, Top, Width, Height);
+    }
+
     private async Task ExecuteStartupAsync()
     {
         try
@@ -249,6 +308,7 @@ public partial class BrowserPlayerWindow : Window
 
     private async void BrowserPlayerOnLoadRequested(object? sender, YouTubeBrowserPlaybackRequest e)
     {
+        EnsureVisibleForObsCapture(e.Owner);
         _activeRequestId = e.RequestId;
         _playbackStartRequestId = e.RequestId;
         _playbackStarted?.TrySetCanceled();
@@ -388,7 +448,8 @@ public partial class BrowserPlayerWindow : Window
         if (YoutubeWebView.CoreWebView2 is null)
         {
             var options = new CoreWebView2EnvironmentOptions(
-                "--disable-quic --disable-gpu --disable-gpu-compositing --disable-accelerated-video-decode");
+                "--disable-quic --disable-gpu --disable-gpu-compositing --disable-accelerated-video-decode " +
+                "--disable-direct-composition --disable-features=DirectCompositionVideoOverlays");
             var environment = await CreateWebViewEnvironmentAsync(options);
             await YoutubeWebView.EnsureCoreWebView2Async(environment);
         }
@@ -581,6 +642,13 @@ public partial class BrowserPlayerWindow : Window
 
     private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WmSysCommand && (wParam.ToInt32() & 0xFFF0) == ScMinimize)
+        {
+            ParkForObsCapture();
+            handled = true;
+            return IntPtr.Zero;
+        }
+
         if (msg != WmSizing)
             return IntPtr.Zero;
 

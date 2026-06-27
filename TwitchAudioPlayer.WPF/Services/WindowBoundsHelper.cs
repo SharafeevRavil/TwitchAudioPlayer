@@ -42,7 +42,7 @@ public static class WindowBoundsHelper
             ? new Rect(window.Left, window.Top, window.Width, window.Height)
             : window.RestoreBounds;
 
-        if (!IsUsable(rect))
+        if (!IsUsable(rect) || !IntersectsVirtualScreen(rect))
             return;
 
         bounds.Left = rect.Left;

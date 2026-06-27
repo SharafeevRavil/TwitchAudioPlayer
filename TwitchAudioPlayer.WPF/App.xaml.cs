@@ -43,6 +43,7 @@ public partial class App : Application
         ConfigureServices(services);
 
         _serviceProvider = services.BuildServiceProvider();
+        _serviceProvider.GetRequiredService<ObsBrowserSourceService>();
 
         // var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         var startingWindow = _serviceProvider.GetRequiredService<StartingWindow>();
@@ -74,6 +75,7 @@ public partial class App : Application
         services.AddTransient<IWindowService, WindowService>();
         services.AddSingleton<BrowserPlayerService>();
         services.AddSingleton<BrowserPlayerWindowService>();
+        services.AddSingleton<ObsBrowserSourceService>();
         services.AddSingleton<MusicOrderRepository>();
 
         services.AddSingleton<DonationAlertsService>();
