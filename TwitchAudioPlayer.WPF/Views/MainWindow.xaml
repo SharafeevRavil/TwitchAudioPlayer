@@ -98,6 +98,11 @@
                             Style="{StaticResource MaterialDesignFlatButton}">
                         <materialDesign:PackIcon Kind="Robot" Width="25" Height="25" />
                     </Button>
+                    <Button Click="ObsSetup_Click" Width="60" Height="40"
+                            ToolTip="OBS scene setup"
+                            Style="{StaticResource MaterialDesignFlatButton}">
+                        <materialDesign:PackIcon Kind="Broadcast" Width="25" Height="25" />
+                    </Button>
                     <TextBlock Text="{Binding Version}" FontWeight="Bold" VerticalAlignment="Center" FontSize="10"
                                Margin="10, 5"
                                Foreground="{DynamicResource MaterialDesignBody}" />

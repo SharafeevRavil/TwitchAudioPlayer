@@ -115,12 +115,14 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private CancellationTokenSource? _currentCts;
     private CancellationTokenSource? _prefetchCts;
     private CancellationTokenSource? _searchRetryCts;
+    private CancellationTokenSource? _vkUnavailableFallbackCts;
     private string? _prefetchTargetKey;
     private DateTimeOffset _blockedUntil = DateTimeOffset.MinValue;
     private YouTubeMatchCandidate? _lastAppliedCandidate;
     private int _consecutiveFailures;
     private int _fallbackAttempts;
     private int _searchRetryAttempt;
+    private bool _currentVkTrackUnavailable;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsVkSourceSelected))]
@@ -135,6 +137,8 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     [ObservableProperty] private YouTubeMatchCandidate? _selectedCandidate;
 
     private const int CacheFormatVersion = 16;
+    private const string VkUnavailableReason =
+        "VK track is unavailable because of VPN/network restrictions or other reasons.";
 
     public VkYouTubePlaybackService(IUserSettingsManager settingsManager, BrowserPlayerService browserPlayer,
         YouTubeSearchService searchService, ChatGptResolverService chatGptResolver)
@@ -154,6 +158,8 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
             dispatcher.InvokeAsync(() => HandleTrackChangedAsync(_player.CurrentTrack));
         _player.NextTrackChanged += (_, _) =>
             dispatcher.InvokeAsync(() => SchedulePrefetch(_player.CurrentTrack));
+        _player.TrackPlaybackFailed += args =>
+            dispatcher.InvokeAsync(() => HandleVkPlaybackFailedAsync(args)).Task.Unwrap();
         // Also schedule prefetch when the queue or playlist changes so AI decisions
         // can be prepared earlier (not only when track playback starts).
         _player.QueueLoadingStateChanged += (_, _) =>
@@ -196,6 +202,15 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         if (ActiveSource != VkPlaybackSource.YouTube ||
             _browserPlayer.CurrentOwner != BrowserPlaybackOwner.VkReplacement)
             return;
+
+        if (_currentVkTrackUnavailable)
+        {
+            _player.IsPlaybackSuppressed = true;
+            _player.Pause();
+            StatusText = "VK track is unavailable. Staying on YouTube replacement.";
+            RefreshSourceButtons();
+            return;
+        }
 
         var position = _browserPlayer.Position;
         var wasPlaying = _browserPlayer.IsPlaying;
@@ -276,6 +291,8 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
     private async Task HandleTrackChangedAsync(PlaylistTrack? track)
     {
         _currentCts?.Cancel();
+        _vkUnavailableFallbackCts?.Cancel();
+        _vkUnavailableFallbackCts = null;
         _searchRetryCts?.Cancel();
         _searchRetryCts?.Dispose();
         _searchRetryCts = null;
@@ -303,6 +320,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         _lastAppliedCandidate = null;
         _failedVideos.Clear();
         _fallbackAttempts = 0;
+        _currentVkTrackUnavailable = false;
         if (!IsAvailable || track is null)
         {
             StatusText = "YouTube replacement is available for VK tracks";
@@ -340,6 +358,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
 
             IsResolving = true;
             StatusText = "Searching YouTube…";
+            ShowVkUnavailableNotice(track, "Searching YouTube replacement...");
             var sw = System.Diagnostics.Stopwatch.StartNew();
 
             _logger.Information("ResolveAsync: calling GetCandidatesAsync for {Track}", track?.Title);
@@ -378,6 +397,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
             {
                 _logger.Information("ResolveAsync: AI enabled, calling ApplyChatGptDecisionAsync");
                 StatusText = "AI is choosing a YouTube replacement…";
+                ShowVkUnavailableNotice(track, "AI is choosing a YouTube replacement...");
                 candidates = await ApplyChatGptDecisionAsync(track, candidates, cts.Token);
                 _logger.Information("ResolveAsync: ApplyChatGptDecisionAsync RETURNED");
                 if (cts.IsCancellationRequested || _player.CurrentTrack != track) return;
@@ -928,6 +948,7 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
         SelectedCandidate = candidate;
         ActiveSource = VkPlaybackSource.YouTube;
         StatusText = $"YouTube #{candidate.Rank}: {candidate.Title}";
+        _player.ClearTrackPlaybackNotice(track);
         if (!_settingsManager.Settings.UseSeparateSourceVolumes)
         {
             _browserPlayer.SetVolume(_player.Volume);
@@ -980,10 +1001,161 @@ public sealed partial class VkYouTubePlaybackService : ObservableObject
             return;
         }
 
+        if (_currentVkTrackUnavailable)
+        {
+            _player.IsPlaybackSuppressed = false;
+            StatusText = $"YouTube failed ({message}) and VK is unavailable - skipping track.";
+            _logger.Warning("All YouTube playback candidates failed and VK is unavailable; skipping at {Position}",
+                position);
+            await _player.NextTrack();
+            return;
+        }
+
         _player.IsPlaybackSuppressed = false;
         _player.Play();
         StatusText = $"YouTube failed ({message}) — playing VK";
         _logger.Warning("All YouTube playback candidates failed; resumed VK at {Position}", position);
+    }
+
+    private async Task<bool> HandleVkPlaybackFailedAsync(PlayerTrackPlaybackFailureEventArgs args)
+    {
+        var track = args.Track;
+        if (!IsVkTrack(track) || !ReferenceEquals(_player.CurrentTrack, track))
+            return false;
+
+        IsAvailable = true;
+        _currentVkTrackUnavailable = true;
+        ActiveSource = VkPlaybackSource.Vk;
+        _player.IsPlaybackSuppressed = true;
+        _player.Pause();
+        if (!AutoPlayEnabled)
+        {
+            _player.IsPlaybackSuppressed = false;
+            StatusText = "VK track is unavailable. Auto YouTube is disabled.";
+            return false;
+        }
+
+        StatusText = "VK track is unavailable. Waiting for YouTube replacement...";
+        ShowVkUnavailableNotice(track, "Waiting for YouTube replacement...");
+        StartVkUnavailableFallback(track, args.CancellationToken);
+        await Task.CompletedTask;
+        return true;
+    }
+
+    private void StartVkUnavailableFallback(PlaylistTrack track, CancellationToken playerCancellationToken)
+    {
+        _vkUnavailableFallbackCts?.Cancel();
+        _vkUnavailableFallbackCts = CancellationTokenSource.CreateLinkedTokenSource(playerCancellationToken);
+        _ = HandleVkUnavailableFallbackAsync(track, _vkUnavailableFallbackCts);
+    }
+
+    private async Task HandleVkUnavailableFallbackAsync(
+        PlaylistTrack track,
+        CancellationTokenSource cts)
+    {
+        try
+        {
+            StatusText = "VK track is unavailable. Searching YouTube replacement...";
+            ShowVkUnavailableNotice(track, "Searching YouTube replacement...");
+            _logger.Warning("VK unavailable for {Track}; waiting for YouTube replacement resolve", track.Title);
+            await ResolveAsync(track, true, true);
+            if (cts.IsCancellationRequested || !ReferenceEquals(_player.CurrentTrack, track))
+                return;
+
+            if (_browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement)
+                return;
+
+            var fallback = BestUnavailableVkFallbackCandidate();
+            if (fallback is not null)
+            {
+                StatusText = $"VK track is unavailable. Playing YouTube #{fallback.Rank}: {fallback.Title}";
+                _logger.Warning(
+                    "VK unavailable for {Track}; forcing YouTube candidate #{Rank} {VideoId} despite confidence {Confidence}. Reason: {Reason}",
+                    track.Title,
+                    fallback.Rank,
+                    fallback.VideoId,
+                    fallback.Confidence,
+                    fallback.Reason);
+                await PlayAsync(fallback);
+                return;
+            }
+
+            await SkipUnavailableVkTrackAsync(track, "Unlucky: no suitable YouTube replacement found.", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // The current track changed while the replacement was resolving.
+        }
+        catch (Exception e)
+        {
+            if (cts.IsCancellationRequested)
+                return;
+
+            _logger.Error(e, "VK unavailable fallback failed for {Track}", track.Title);
+            await SkipUnavailableVkTrackAsync(
+                track,
+                $"YouTube replacement failed: {SingleLine(e.Message)}.",
+                cts.Token);
+        }
+        finally
+        {
+            if (ReferenceEquals(_vkUnavailableFallbackCts, cts))
+                _vkUnavailableFallbackCts = null;
+            cts.Dispose();
+        }
+    }
+
+    private async Task SkipUnavailableVkTrackAsync(
+        PlaylistTrack track,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        for (var seconds = 3; seconds > 0; seconds--)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!ReferenceEquals(_player.CurrentTrack, track))
+                return;
+
+            StatusText =
+                $"{reason} Next track starts in {seconds} second{(seconds == 1 ? string.Empty : "s")}.";
+            _player.ShowTrackPlaybackNotice(
+                track,
+                reason,
+                $"{reason} Next track starts in {seconds} second{(seconds == 1 ? string.Empty : "s")}.",
+                seconds);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+
+        if (!ReferenceEquals(_player.CurrentTrack, track))
+            return;
+
+        _player.IsPlaybackSuppressed = false;
+        _player.ClearTrackPlaybackNotice(track);
+        StatusText = $"{reason} Skipping unavailable track.";
+        await _player.NextTrack();
+    }
+
+    private void ShowVkUnavailableNotice(PlaylistTrack track, string detail)
+    {
+        if (!_currentVkTrackUnavailable || !ReferenceEquals(_player.CurrentTrack, track))
+            return;
+
+        _player.ShowTrackPlaybackNotice(track, VkUnavailableReason, $"{VkUnavailableReason} {detail}");
+    }
+
+    private YouTubeMatchCandidate? BestUnavailableVkFallbackCandidate()
+    {
+        if (SelectedCandidate is { } selected &&
+            IsPlaybackKind(selected.Kind) &&
+            !_failedVideos.Contains(selected.VideoId))
+            return selected;
+
+        return Candidates
+            .Where(candidate => IsPlaybackKind(candidate.Kind) &&
+                                !_failedVideos.Contains(candidate.VideoId))
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenBy(candidate => candidate.Rank)
+            .FirstOrDefault();
     }
 
     private void HandleOwnerChanged()

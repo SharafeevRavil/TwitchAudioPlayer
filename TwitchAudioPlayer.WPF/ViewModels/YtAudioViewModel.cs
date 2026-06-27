@@ -565,17 +565,7 @@ public partial class YtAudioViewModel : ObservableObject
     private void SetSettings(Dispatcher? dispatcher = null)
     {
         _maxYtMinutes = _userSettingsManager.Settings.MaxMinutesLength;
-        var wasBrowserPlaybackMode = IsBrowserPlaybackMode;
-        IsBrowserPlaybackMode =
-            _userSettingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
-
-        if (wasBrowserPlaybackMode && !IsBrowserPlaybackMode)
-        {
-            ClearBrowserCurrentTrack();
-            _browserPlayer.Stop();
-            _player.IsPlaybackSuppressed = false;
-            BrowserPlayerStatusText = "YouTube browser playback is disabled.";
-        }
+        IsBrowserPlaybackMode = true;
 
         NotifyCanTouchButtons();
         if (dispatcher != null)

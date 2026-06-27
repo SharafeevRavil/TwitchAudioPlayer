@@ -15,15 +15,15 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     private readonly IUserSettingsManager _userSettingsManager;
     private readonly DonationAlertsService _donationAlertsService;
     private readonly TwitchService _twitchService;
+    private bool _isInitialized;
 
     [ObservableProperty] private double? _maxMinutesLength;
-    [ObservableProperty] private YouTubePlaybackMode _youTubePlaybackMode;
-
     [ObservableProperty] private bool _useSeparateSourceVolumes;
     [ObservableProperty] private bool _useYtDlpForSearch;
     [ObservableProperty] private bool _rotateYouTubeUserAgent;
     [ObservableProperty] private bool _useYouTubeProxy;
     [ObservableProperty] private string? _youTubeProxyListText;
+    [ObservableProperty] private double _obsYouTubeAudioGain;
 
     public YtSettingsViewModel(IUserSettingsManager userSettingsManager, DonationAlertsService donationAlertsService,
         TwitchService twitchService)
@@ -37,12 +37,12 @@ public partial class YtSettingsViewModel : ModalViewModelBase
 
         // YT
         MaxMinutesLength = _userSettingsManager.Settings.MaxMinutesLength;
-        YouTubePlaybackMode = _userSettingsManager.Settings.YouTubePlaybackMode;
         UseSeparateSourceVolumes = _userSettingsManager.Settings.UseSeparateSourceVolumes;
         UseYtDlpForSearch = _userSettingsManager.Settings.UseYtDlpForSearch;
         RotateYouTubeUserAgent = _userSettingsManager.Settings.RotateYouTubeUserAgent;
         UseYouTubeProxy = _userSettingsManager.Settings.UseYouTubeProxy;
         YouTubeProxyListText = string.Join("\n", _userSettingsManager.Settings.YouTubeProxyList ?? new List<string>());
+        ObsYouTubeAudioGain = _userSettingsManager.Settings.ObsYouTubeAudioGain;
 
         // Twitch
         TwitchRewardTitle = _userSettingsManager.Settings.TwitchRewardTitle;
@@ -60,6 +60,16 @@ public partial class YtSettingsViewModel : ModalViewModelBase
 
         IsDaWidgetTokenValid = false;
         dispatcher.Invoke(async () => IsDaWidgetTokenValid = await _donationAlertsService.CheckWidgetTokenValid());
+        _isInitialized = true;
+    }
+
+    partial void OnObsYouTubeAudioGainChanged(double value)
+    {
+        if (!_isInitialized)
+            return;
+
+        _userSettingsManager.Settings.ObsYouTubeAudioGain = Math.Clamp(value, 0, 64);
+        _ = _userSettingsManager.SaveSettingsAsync();
     }
 
     private async Task NotifySettingsChanged()
@@ -73,12 +83,12 @@ public partial class YtSettingsViewModel : ModalViewModelBase
     {
         // Yt
         if (MaxMinutesLength.HasValue) _userSettingsManager.Settings.MaxMinutesLength = MaxMinutesLength.Value;
-        _userSettingsManager.Settings.YouTubePlaybackMode = YouTubePlaybackMode;
         _userSettingsManager.Settings.UseSeparateSourceVolumes = UseSeparateSourceVolumes;
         _userSettingsManager.Settings.UseYtDlpForSearch = UseYtDlpForSearch;
         _userSettingsManager.Settings.RotateYouTubeUserAgent = RotateYouTubeUserAgent;
         _userSettingsManager.Settings.UseYouTubeProxy = UseYouTubeProxy;
         _userSettingsManager.Settings.YouTubeProxyList = (YouTubeProxyListText ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+        _userSettingsManager.Settings.ObsYouTubeAudioGain = Math.Clamp(ObsYouTubeAudioGain, 0, 64);
         // Twitch
         _userSettingsManager.Settings.TwitchRewardTitle = TwitchRewardTitle;
         _userSettingsManager.Settings.TwitchRewardPrompt = TwitchRewardPrompt;
@@ -91,8 +101,6 @@ public partial class YtSettingsViewModel : ModalViewModelBase
         await _userSettingsManager.SaveSettingsAsync();
         await base.SaveAsync();
     }
-
-    public IReadOnlyList<YouTubePlaybackMode> YouTubePlaybackModes { get; } = Enum.GetValues<YouTubePlaybackMode>();
 
     #region Twitch
 

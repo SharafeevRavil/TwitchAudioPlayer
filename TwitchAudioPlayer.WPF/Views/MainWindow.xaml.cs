@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         WindowBoundsHelper.Apply(this, _userSettingsManager.Settings.MainWindowBounds);
         WindowBoundsHelper.AttachAutoSave(this, _userSettingsManager.Settings.MainWindowBounds, _userSettingsManager);
         StateChanged += OnWindowStateChanged;
+        Closing += OnWindowClosing;
         SourceInitialized += (_, _) => ApplyTopmost();
         Activated += (_, _) =>
         {
@@ -75,8 +76,21 @@ public partial class MainWindow : Window
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
+    private void ObsSetup_Click(object sender, RoutedEventArgs e)
+    {
+        _browserPlayerWindowService.OpenObsSetup(this);
+    }
+
     private void Close_Click(object sender, RoutedEventArgs e)
     {
+        Application.Current.Shutdown();
+    }
+
+    private void OnWindowClosing(object? sender, CancelEventArgs e)
+    {
+        if (Application.Current.Dispatcher.HasShutdownStarted)
+            return;
+
         Application.Current.Shutdown();
     }
 

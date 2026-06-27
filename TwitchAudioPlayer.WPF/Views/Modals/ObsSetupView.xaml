@@ -1,0 +1,142 @@
+<Window x:Class="TwitchAudioPlayer.WPF.Views.Modals.ObsSetupView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:modals="clr-namespace:TwitchAudioPlayer.WPF.ViewModels.Modals"
+        mc:Ignorable="d"
+        Title="OBS Setup"
+        Height="430"
+        Width="620"
+        ResizeMode="NoResize"
+        Style="{StaticResource MaterialDesignWindow}"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        d:DataContext="{d:DesignInstance Type=modals:ObsSetupViewModel, IsDesignTimeCreatable=True}">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="OBS scene setup"
+                   FontSize="24"
+                   FontWeight="Bold"
+                   Margin="0,0,0,18" />
+
+        <Grid Grid.Row="1"
+              Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="120" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="0"
+                     Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                     materialDesign:HintAssist.Hint="Host"
+                     Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Grid.Column="1"
+                    Content="default"
+                    Command="{Binding ResetHostCommand}"
+                    Margin="8,0,0,0"
+                    Padding="10,0"
+                    Style="{StaticResource MaterialDesignOutlinedButton}" />
+            <TextBox Grid.Column="3"
+                     Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                     materialDesign:HintAssist.Hint="Port"
+                     Text="{Binding Port, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Grid.Column="4"
+                    Content="default"
+                    Command="{Binding ResetPortCommand}"
+                    Margin="8,0,0,0"
+                    Padding="10,0"
+                    Style="{StaticResource MaterialDesignOutlinedButton}" />
+        </Grid>
+
+        <Grid Grid.Row="2"
+              Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="0"
+                     Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                     materialDesign:HintAssist.Hint="Scene name"
+                     Text="{Binding GroupName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <PasswordBox x:Name="ObsPasswordBox"
+                         Grid.Column="2"
+                         Style="{StaticResource MaterialDesignFloatingHintPasswordBox}"
+                         materialDesign:HintAssist.Hint="Password" />
+        </Grid>
+
+        <TextBlock Grid.Row="3"
+                   Text="OBS must have WebSocket Server enabled. The default OBS 5.x address is 127.0.0.1:4455."
+                   TextWrapping="Wrap"
+                   Foreground="#DDFFFFFF"
+                   Margin="0,0,0,14" />
+
+        <Border Grid.Row="4"
+                Background="#22111111"
+                BorderBrush="#33000000"
+                BorderThickness="1"
+                Padding="12">
+            <TextBlock Text="{Binding StatusText}"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Top" />
+        </Border>
+
+        <Grid Grid.Row="5"
+              Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ProgressBar Grid.Column="0"
+                         Height="3"
+                         IsIndeterminate="True"
+                         VerticalAlignment="Center"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}" />
+            <Button Grid.Column="1"
+                    Content="Create"
+                    Command="{Binding CreateCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Margin="12,0,0,0" />
+            <Button Grid.Column="2"
+                    Content="Update"
+                    Command="{Binding UpdateCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Margin="8,0,0,0" />
+            <Button Grid.Column="3"
+                    Content="Delete"
+                    Command="{Binding DeleteCommand}"
+                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Margin="8,0,0,0" />
+            <Button Grid.Column="4"
+                    Content="Save"
+                    Command="{Binding SaveCommand}"
+                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Margin="8,0,0,0" />
+            <Button Grid.Column="5"
+                    Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Margin="8,0,0,0" />
+        </Grid>
+    </Grid>
+</Window>

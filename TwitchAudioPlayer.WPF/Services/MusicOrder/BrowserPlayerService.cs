@@ -15,6 +15,7 @@ public sealed partial class BrowserPlayerService : ObservableObject
     [ObservableProperty] private PlaylistTrack? _currentTrack;
     [ObservableProperty] private BrowserPlaybackOwner _currentOwner;
     [ObservableProperty] private string _statusText = "YouTube browser player is starting...";
+    [ObservableProperty] private uint _webViewBrowserProcessId;
 
     public event EventHandler<YouTubeBrowserPlaybackRequest>? LoadRequested;
     public event EventHandler? PlayRequested;
@@ -137,6 +138,14 @@ public sealed partial class BrowserPlayerService : ObservableObject
     {
         // YouTube can report transient iframe volume during startup/buffering.
         // The app volume slider is the source of truth, so incoming values are ignored.
+    }
+
+    public void ReportWebViewBrowserProcessId(uint processId)
+    {
+        if (WebViewBrowserProcessId == processId)
+            return;
+
+        WebViewBrowserProcessId = processId;
     }
 
     public void ReportEnded()

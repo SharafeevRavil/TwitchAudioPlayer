@@ -26,13 +26,14 @@ public class UserSettings
 
     //yt
     public double MaxMinutesLength { get; set; } = 6;
-    public YouTubePlaybackMode YouTubePlaybackMode { get; set; } = YouTubePlaybackMode.Browser;
     public bool UseSeparateSourceVolumes { get; set; } = true;
     public double VkVolume { get; set; } = 0.01;
     public double YouTubeVolume { get; set; } = 1;
+    public double ObsYouTubeAudioGain { get; set; } = 8;
     public bool BrowserPlayerTopmost { get; set; } = true;
     public bool MainWindowTopmost { get; set; }
     public bool AutoPlayYouTubeForVk { get; set; }
+    public ObsWebSocketSettings ObsWebSocket { get; set; } = new();
     // yt-dlp integration
     public bool UseYtDlpForSearch { get; set; } = true;
     public bool RotateYouTubeUserAgent { get; set; }
@@ -88,6 +89,14 @@ public class WindowBoundsSettings
     public bool IsMaximized { get; set; }
 }
 
+public class ObsWebSocketSettings
+{
+    public string Host { get; set; } = "127.0.0.1";
+    public int Port { get; set; } = 4455;
+    public string? Password { get; set; }
+    public string GroupName { get; set; } = "TwitchAudioPlayer";
+}
+
 public class UserSettingsManager : IUserSettingsManager
 {
     private readonly string _filePath;
@@ -133,6 +142,7 @@ public class UserSettingsManager : IUserSettingsManager
         var settings = JsonSerializer.Deserialize<UserSettings>(json) ?? new UserSettings();
         settings.ChatGptResolver ??= new ChatGptResolverSettings();
         settings.ChatGptResolver.Accounts ??= [];
+        settings.ObsWebSocket ??= new ObsWebSocketSettings();
         return settings;
     }
 

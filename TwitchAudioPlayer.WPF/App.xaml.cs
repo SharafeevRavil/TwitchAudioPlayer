@@ -13,6 +13,7 @@ using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.ChatGpt;
 using TwitchAudioPlayer.WPF.Services.DonationAlerts;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
+using TwitchAudioPlayer.WPF.Services.Obs;
 using TwitchAudioPlayer.WPF.Services.Twitch;
 using TwitchAudioPlayer.WPF.ViewModels;
 using TwitchAudioPlayer.WPF.ViewModels.Modals;
@@ -43,7 +44,7 @@ public partial class App : Application
         ConfigureServices(services);
 
         _serviceProvider = services.BuildServiceProvider();
-        _serviceProvider.GetRequiredService<ObsBrowserSourceService>();
+        _serviceProvider.GetRequiredService<ObsYouTubeAudioBridgeService>();
 
         // var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         var startingWindow = _serviceProvider.GetRequiredService<StartingWindow>();
@@ -74,8 +75,9 @@ public partial class App : Application
 
         services.AddTransient<IWindowService, WindowService>();
         services.AddSingleton<BrowserPlayerService>();
+        services.AddSingleton<ObsYouTubeAudioBridgeService>();
+        services.AddSingleton<ObsSceneSetupService>();
         services.AddSingleton<BrowserPlayerWindowService>();
-        services.AddSingleton<ObsBrowserSourceService>();
         services.AddSingleton<MusicOrderRepository>();
 
         services.AddSingleton<DonationAlertsService>();
@@ -99,6 +101,7 @@ public partial class App : Application
         services.AddTransient<VkSettingsViewModel>();
         services.AddTransient<YtAudioViewModel>();
         services.AddTransient<YtSettingsViewModel>();
+        services.AddTransient<ObsSetupViewModel>();
         services.AddTransient<HotkeySettingsViewModel>();
         services.AddTransient<ChatGptSettingsViewModel>();
 
@@ -111,6 +114,7 @@ public partial class App : Application
         services.AddTransient<VkSettingsView>();
         services.AddTransient<YtAudioView>();
         services.AddTransient<YtSettingsView>();
+        services.AddTransient<ObsSetupView>();
         services.AddTransient<HotkeySettingsView>();
         services.AddTransient<ChatGptSettingsView>();
 

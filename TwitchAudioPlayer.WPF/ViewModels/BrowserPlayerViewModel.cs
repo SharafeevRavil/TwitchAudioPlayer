@@ -24,6 +24,7 @@ public partial class BrowserPlayerViewModel : ObservableObject
     private bool _isUpdatingFromPlayer;
     private CancellationTokenSource? _volumeSaveCts;
     private CancellationTokenSource? _hideArtworkDelayCts;
+    private PlaylistTrack? _playbackNoticeTrack;
     private double _currentPosition;
     private double _volume = 1;
     private double _volumeSliderPosition = 1;
@@ -49,6 +50,8 @@ public partial class BrowserPlayerViewModel : ObservableObject
     [ObservableProperty] private string _artworkCoverUrl = "pack://application:,,,/Assets/default.png";
     [ObservableProperty] private string _artworkTitle = "";
     [ObservableProperty] private string _artworkArtist = "";
+    [ObservableProperty] private bool _isPlaybackNoticeVisible;
+    [ObservableProperty] private string _playbackNoticeText = "";
 
     private const string VkVolumeBrush = "#FF2787F5";
     private const string YouTubeVolumeBrush = "#FFFF0033";
@@ -74,6 +77,8 @@ public partial class BrowserPlayerViewModel : ObservableObject
         _player.PositionTrackChangedEvent += (_, _) => dispatcher.Invoke(UpdateState);
         _player.VolumeChanged += (_, _) => dispatcher.Invoke(UpdateState);
         _player.IsMutedChanged += (_, _) => dispatcher.Invoke(UpdateState);
+        _player.TrackPlaybackFailureStateChanged += (_, args) =>
+            dispatcher.Invoke(() => ShowPlaybackNotice(args));
 
         IsPinned = _userSettingsManager.Settings.BrowserPlayerTopmost;
         ApplySavedVolumes();
@@ -159,6 +164,8 @@ public partial class BrowserPlayerViewModel : ObservableObject
         if (track is not null)
         {
             CancelDelayedArtworkHide();
+            if (_playbackNoticeTrack is not null && !ReferenceEquals(track, _playbackNoticeTrack))
+                HidePlaybackNotice();
             var replacement = _browserPlayer.CurrentOwner == BrowserPlaybackOwner.VkReplacement
                 ? VkYouTube.SelectedCandidate
                 : null;
@@ -385,6 +392,31 @@ public partial class BrowserPlayerViewModel : ObservableObject
     {
         IsFullScreen = !IsFullScreen;
         FullScreenRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ShowPlaybackNotice(PlayerTrackPlaybackFailureStateEventArgs args)
+    {
+        if (!ReferenceEquals(_player.CurrentTrack, args.Track))
+            return;
+
+        if (string.IsNullOrWhiteSpace(args.Message))
+        {
+            HidePlaybackNotice();
+            return;
+        }
+
+        PlaybackNoticeText = args.Message;
+        _playbackNoticeTrack = args.Track;
+        IsPlaybackNoticeVisible = true;
+        IsArtworkVisible = true;
+        HasVideoContent = true;
+    }
+
+    private void HidePlaybackNotice()
+    {
+        PlaybackNoticeText = "";
+        _playbackNoticeTrack = null;
+        IsPlaybackNoticeVisible = false;
     }
 
     [RelayCommand]

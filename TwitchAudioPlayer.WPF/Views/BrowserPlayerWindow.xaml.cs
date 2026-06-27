@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -7,10 +9,14 @@ using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using TwitchAudioPlayer.WPF.Services;
 using TwitchAudioPlayer.WPF.Services.MusicOrder;
+using TwitchAudioPlayer.WPF.Services.Obs;
 using TwitchAudioPlayer.WPF.ViewModels;
+using TwitchAudioPlayer.WPF.ViewModels.Modals;
+using TwitchAudioPlayer.WPF.Views.Modals;
 
 namespace TwitchAudioPlayer.WPF.Views;
 
@@ -113,6 +119,7 @@ public partial class BrowserPlayerWindow : Window
     private readonly BrowserPlayerService _browserPlayer;
     private readonly IUserSettingsManager _userSettingsManager;
     private readonly BrowserPlayerViewModel _viewModel;
+    private readonly IServiceProvider _serviceProvider;
     private TaskCompletionSource _pageLoaded = NewPageLoadedSource();
     private Task? _webViewInitializationTask;
     private bool _webViewInitialized;
@@ -127,12 +134,14 @@ public partial class BrowserPlayerWindow : Window
     public BrowserPlayerWindow(
         BrowserPlayerViewModel viewModel,
         BrowserPlayerService browserPlayer,
-        IUserSettingsManager userSettingsManager)
+        IUserSettingsManager userSettingsManager,
+        IServiceProvider serviceProvider)
     {
         InitializeComponent();
         _viewModel = viewModel;
         _browserPlayer = browserPlayer;
         _userSettingsManager = userSettingsManager;
+        _serviceProvider = serviceProvider;
         DataContext = viewModel;
 
         WindowBoundsHelper.Apply(this, _userSettingsManager.Settings.BrowserPlayerWindowBounds);
@@ -142,6 +151,7 @@ public partial class BrowserPlayerWindow : Window
         SourceInitialized += OnSourceInitialized;
         Activated += OnActivated;
         SizeChanged += OnSizeChanged;
+        Closing += OnClosing;
         Closed += OnClosed;
         _viewModel.PinChanged += ViewModelOnPinChanged;
         _viewModel.MinimizeRequested += ViewModelOnMinimizeRequested;
@@ -164,6 +174,24 @@ public partial class BrowserPlayerWindow : Window
 
     private void ViewModelOnFullScreenRequested(object? sender, EventArgs e) => ToggleFullScreen();
 
+    public void OpenObsSetupDialog(Window owner)
+    {
+        var view = _serviceProvider.GetRequiredService<ObsSetupView>();
+        if (view.DataContext is ObsSetupViewModel viewModel)
+            viewModel.Initialize(CreateObsWindowTarget, CreateObsCrop);
+
+        view.Owner = owner;
+        view.ShowDialog();
+    }
+
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (Application.Current.Dispatcher.HasShutdownStarted)
+            return;
+
+        Application.Current.Shutdown();
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         _viewModel.PinChanged -= ViewModelOnPinChanged;
@@ -176,6 +204,16 @@ public partial class BrowserPlayerWindow : Window
         _browserPlayer.SeekRequested -= BrowserPlayerOnSeekRequested;
         _browserPlayer.VolumeRequested -= BrowserPlayerOnVolumeRequested;
         _browserPlayer.MuteRequested -= BrowserPlayerOnMuteRequested;
+
+        if (YoutubeWebView.CoreWebView2 is not null)
+        {
+            YoutubeWebView.CoreWebView2.FrameCreated -= CoreWebView2OnFrameCreated;
+            YoutubeWebView.CoreWebView2.WebMessageReceived -= CoreWebView2OnWebMessageReceived;
+            YoutubeWebView.CoreWebView2.ProcessFailed -= CoreWebView2OnProcessFailed;
+            YoutubeWebView.NavigationCompleted -= YoutubeWebViewOnNavigationCompleted;
+        }
+
+        YoutubeWebView.Dispose();
     }
 
     public void ParkForObsCapture()
@@ -447,9 +485,7 @@ public partial class BrowserPlayerWindow : Window
             CoreWebView2Environment.GetAvailableBrowserVersionString());
         if (YoutubeWebView.CoreWebView2 is null)
         {
-            var options = new CoreWebView2EnvironmentOptions(
-                "--disable-quic --disable-gpu --disable-gpu-compositing --disable-accelerated-video-decode " +
-                "--disable-direct-composition --disable-features=DirectCompositionVideoOverlays");
+            var options = new CoreWebView2EnvironmentOptions("--disable-quic");
             var environment = await CreateWebViewEnvironmentAsync(options);
             await YoutubeWebView.EnsureCoreWebView2Async(environment);
         }
@@ -460,6 +496,7 @@ public partial class BrowserPlayerWindow : Window
         YoutubeWebView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
         YoutubeWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
         YoutubeWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+        _browserPlayer.ReportWebViewBrowserProcessId(YoutubeWebView.CoreWebView2.BrowserProcessId);
         YoutubeWebView.CoreWebView2.FrameCreated += CoreWebView2OnFrameCreated;
         await YoutubeWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(GetHideYouTubeChromeScript());
         YoutubeWebView.CoreWebView2.WebMessageReceived += CoreWebView2OnWebMessageReceived;
@@ -712,6 +749,70 @@ public partial class BrowserPlayerWindow : Window
         return actualHeight > 0 ? actualHeight : DefaultPlayerChromeHeight;
     }
 
+    private ObsWindowCaptureTarget CreateObsWindowTarget()
+    {
+        var handle = new WindowInteropHelper(this).EnsureHandle();
+        var title = GetWindowText(handle);
+        var className = GetWindowClassName(handle);
+        var executableName = GetWindowExecutableName(handle);
+
+        if (string.IsNullOrWhiteSpace(title))
+            title = Title;
+
+        return new ObsWindowCaptureTarget(title, className, executableName);
+    }
+
+    private ObsCrop CreateObsCrop()
+    {
+        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice;
+        var dpiY = transform?.M22 ?? 1;
+
+        return new ObsCrop(
+            ToPixels(TopChrome.ActualHeight, dpiY),
+            ToPixels(ControlsPanel.ActualHeight + ResolverPanel.ActualHeight, dpiY),
+            0,
+            0);
+    }
+
+    private static int ToPixels(double value, double dpiScale) =>
+        Math.Max(0, (int)Math.Round(value * dpiScale));
+
+    private static string GetWindowText(IntPtr handle)
+    {
+        var length = GetWindowTextLength(handle);
+        if (length <= 0)
+            return "";
+
+        var builder = new System.Text.StringBuilder(length + 1);
+        return GetWindowText(handle, builder, builder.Capacity) > 0
+            ? builder.ToString()
+            : "";
+    }
+
+    private static string GetWindowClassName(IntPtr handle)
+    {
+        var builder = new System.Text.StringBuilder(256);
+        return GetClassName(handle, builder, builder.Capacity) > 0
+            ? builder.ToString()
+            : "";
+    }
+
+    private static string GetWindowExecutableName(IntPtr handle)
+    {
+        _ = GetWindowThreadProcessId(handle, out var processId);
+        try
+        {
+            using var process = Process.GetProcessById((int)processId);
+            return process.ProcessName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                ? process.ProcessName
+                : $"{process.ProcessName}.exe";
+        }
+        catch
+        {
+            return "TwitchAudioPlayer.WPF.exe";
+        }
+    }
+
     private void DragStrip_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (WindowState == WindowState.Maximized)
@@ -778,6 +879,7 @@ public partial class BrowserPlayerWindow : Window
             5 => "YouTube player error 5: this video cannot be played in the HTML5 player.",
             100 => "YouTube player error 100: video not found, private, or removed.",
             101 or 150 => $"YouTube player error {errorCode}: owner disabled embedded playback. Open on YouTube.",
+            152 => "YouTube player error 152: embedded playback was rejected by YouTube, often because of referrer/origin/client identity.",
             153 => "YouTube player error 153: embedded playback could not identify the client/referrer.",
             _ => errorCode == 0
                 ? "YouTube player error: unknown playback error."
@@ -916,4 +1018,16 @@ public partial class BrowserPlayerWindow : Window
         int attribute,
         ref uint value,
         int valueSize);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 }

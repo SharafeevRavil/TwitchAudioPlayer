@@ -4,7 +4,6 @@ using TwitchAudioPlayer.WPF.Services;
 using YoutubeExplode;
 using YoutubeExplode.Exceptions;
 using YoutubeExplode.Videos;
-using YoutubeExplode.Videos.Streams;
 
 namespace TwitchAudioPlayer.WPF.Services.MusicOrder;
 
@@ -12,7 +11,6 @@ public enum YtTrackError
 {
     YtNotFound = 10,
     TrackZeroDuration = 20,
-    FailedToGetStream = 30,
     FailedToGetInfo = 40,
 }
 
@@ -31,7 +29,6 @@ public record YtTrackData(
 
 public class YouTubeService
 {
-    private static readonly SemaphoreSlim Semaphore = new(5);
     private static readonly TimeSpan MetadataRequestSpacing = TimeSpan.FromMilliseconds(900);
     private static readonly TimeSpan MetadataFailureCooldown = TimeSpan.FromMinutes(5);
     private readonly ILogger _logger = Log.ForContext<YouTubeService>();
@@ -53,10 +50,9 @@ public class YouTubeService
     public async Task<(PlaylistTrack? Track, YtTrackError? Error)> GetPlaylistTrack(string url,
         CancellationToken cancellationToken = default)
     {
-        var useBrowserPlayback = _settingsManager.Settings.YouTubePlaybackMode == YouTubePlaybackMode.Browser;
         var videoId = TryExtractYouTubeId(url);
 
-        if (useBrowserPlayback && videoId is { Length: > 0 } &&
+        if (videoId is { Length: > 0 } &&
             _repository.GetYouTubeMetadata(videoId) is { } cachedMetadata)
         {
             _logger.Information("YouTube metadata cache hit for {VideoId}: {Title}", videoId, cachedMetadata.Title);
@@ -67,7 +63,7 @@ public class YouTubeService
         var (video, infoError) = await GetTrackInfo(url, cancellationToken);
         if (video == null)
         {
-            if (useBrowserPlayback && videoId is { Length: > 0 })
+            if (videoId is { Length: > 0 })
             {
                 _logger.Warning("Failed to get YouTube video info, creating browser-only track for video ID: {VideoId}",
                     videoId);
@@ -85,18 +81,6 @@ public class YouTubeService
             return (null, YtTrackError.TrackZeroDuration);
         }
 
-        IStreamInfo? stream = null;
-        if (!useBrowserPlayback)
-        {
-            _logger.Information("Getting YouTube audio stream: {Title}", video.Title);
-            stream = await GetTrackStreamWithRetryAsync(video, cancellationToken);
-            if (stream == null)
-            {
-                _logger.Error("Failed to get YouTube audio stream: {Title}", video.Title);
-                return (null, YtTrackError.FailedToGetStream);
-            }
-        }
-
         if (videoId is { Length: > 0 })
         {
             _repository.SaveYouTubeMetadata(new YouTubeMetadataCacheEntry(
@@ -112,29 +96,11 @@ public class YouTubeService
         var fakeVkAlbum =
             new VkAlbumId(-1, -1, "", "", video.Thumbnails.Count > 0 ? video.Thumbnails[0].Url : "", null);
         var artists = new List<TrackArtist> { new(video.Author.ChannelTitle, new ArtistId("", ArtistIdType.None)) };
-        var fakeVkData = new YtTrackData(stream?.Url ?? url, false, false, null, video.Duration ?? TimeSpan.MaxValue,
+        var fakeVkData = new YtTrackData(url, false, false, null, video.Duration ?? TimeSpan.MaxValue,
             GetFakeId(), "", null, null, null);
         var playlistTrack = new PlaylistTrack(video.Title, video.Description, fakeVkAlbum, artists, null, fakeVkData);
         _logger.Information("PlaylistTrack created for YouTube video: {Title}", video.Title);
         return (playlistTrack, null);
-    }
-
-    public async Task<IStreamInfo?> GetTrackStreamWithRetryAsync(Video video, CancellationToken cancellationToken)
-    {
-        const int maxRetries = 3;
-        const int delay = 2000;
-
-        for (var attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            var stream = await GetTrackStream(video, cancellationToken);
-            if (stream != null)
-                return stream;
-
-            if (attempt < maxRetries)
-                await Task.Delay(delay, cancellationToken);
-        }
-
-        return null;
     }
 
     private IdInfo GetFakeId() => new(NextLong(_random), NextLong(_random), Guid.NewGuid().ToString());
@@ -253,22 +219,4 @@ public class YouTubeService
         _logger.Warning("YouTube metadata circuit opened for {Cooldown}", MetadataFailureCooldown);
     }
 
-    private async Task<IStreamInfo?> GetTrackStream(Video video, CancellationToken cancellationToken)
-    {
-        await Semaphore.WaitAsync(cancellationToken);
-        try
-        {
-            var streamManifest = await _youtube.Videos.Streams.GetManifestAsync(video.Id, cancellationToken);
-            return streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
-        }
-        catch (Exception e)
-        {
-            _logger.Error(e, "Error while getting stream manifest for video ID: {VideoId}", video.Id);
-            return null;
-        }
-        finally
-        {
-            Semaphore.Release();
-        }
-    }
 }

@@ -10,7 +10,7 @@ public class MusicOrderWithTrack
     public string? ErrorMessage { get; set; }
 
     public bool IsAvailable => PlaylistTrack != null && Error == null;
-    public bool CanRetry => Error is YtTrackError.FailedToGetInfo or YtTrackError.FailedToGetStream;
+    public bool CanRetry => Error is YtTrackError.FailedToGetInfo;
 }
 
 public class MusicOrder

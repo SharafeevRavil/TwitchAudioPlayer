@@ -120,6 +120,8 @@ public class PlayerService
 
     public event EventHandler<PlayerLoadingEventArgs>? QueueLoadingStateChanged;
     public event EventHandler<PlayerLoadingEventArgs>? TrackLoadingStateChanged;
+    public event Func<PlayerTrackPlaybackFailureEventArgs, Task<bool>>? TrackPlaybackFailed;
+    public event EventHandler<PlayerTrackPlaybackFailureStateEventArgs>? TrackPlaybackFailureStateChanged;
 
     protected virtual void OnCurrentPlaylistChanged()
     {
@@ -129,6 +131,26 @@ public class PlayerService
     protected virtual void OnQueueLoadingStateChanged(PlayerLoadingEventArgs state)
     {
         QueueLoadingStateChanged?.Invoke(this, state);
+    }
+
+    public void ShowTrackPlaybackNotice(
+        PlaylistTrack track,
+        string reason,
+        string message,
+        int secondsRemaining = -1)
+    {
+        TrackPlaybackFailureStateChanged?.Invoke(this,
+            new PlayerTrackPlaybackFailureStateEventArgs(track, reason, secondsRemaining, message));
+    }
+
+    public void ClearTrackPlaybackNotice(PlaylistTrack? track = null)
+    {
+        track ??= CurrentTrack;
+        if (track is null)
+            return;
+
+        TrackPlaybackFailureStateChanged?.Invoke(this,
+            new PlayerTrackPlaybackFailureStateEventArgs(track, string.Empty, -1, string.Empty));
     }
 
     public async Task RestoreFromStateAsync(PlayerState state)
@@ -172,6 +194,7 @@ public class PlayerService
 
     protected async Task PlayTrackAsync(int trackIndex, TimeSpan? position = null)
     {
+        PlaylistTrack? track = null;
         try
         {
             if (trackIndex == CurrentIndex)
@@ -194,7 +217,7 @@ public class PlayerService
 
             player.Pause();
 
-            var track = await TrackAtOrDefaultAsync(trackIndex);
+            track = await TrackAtOrDefaultAsync(trackIndex);
             if (track is null)
                 return;
 
@@ -224,7 +247,7 @@ public class PlayerService
 
             if (string.IsNullOrEmpty(track.Data.Url))
             {
-                await NextTrack();
+                await HandleTrackUnavailableAsync(track, "VK did not provide an audio URL for this track.", playbackToken);
                 return;
             }
 
@@ -247,7 +270,7 @@ public class PlayerService
             playbackToken.ThrowIfCancellationRequested();
             if (!allSourcesTask.Result.Any(sourceAccepted => sourceAccepted))
             {
-                await NextTrack();
+                await HandleTrackUnavailableAsync(track, "No local audio source accepted this VK track.", playbackToken);
                 return;
             }
 
@@ -275,7 +298,48 @@ public class PlayerService
         {
             logger.Error(e, "Failed to play track from queue {TrackIndex} {QueueSize}",
                 trackIndex, Tracks.Count);
+            if (track is not null && _tokenSource is { IsCancellationRequested: false })
+                await HandleTrackUnavailableAsync(track, e.Message, _tokenSource.Token);
         }
+    }
+
+    private async Task HandleTrackUnavailableAsync(
+        PlaylistTrack track,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        logger.Warn("Track unavailable: {Track} - {Reason}", track.Title, reason);
+        var failureArgs = new PlayerTrackPlaybackFailureEventArgs(track, reason, cancellationToken);
+        if (TrackPlaybackFailed is { } failedHandlers)
+        {
+            foreach (Func<PlayerTrackPlaybackFailureEventArgs, Task<bool>> handler in failedHandlers.GetInvocationList())
+            {
+                if (await handler(failureArgs))
+                    return;
+            }
+        }
+
+        for (var seconds = 3; seconds > 0; seconds--)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!ReferenceEquals(CurrentTrack, track) || IsPlaybackSuppressed)
+                return;
+
+            TrackPlaybackFailureStateChanged?.Invoke(this,
+                new PlayerTrackPlaybackFailureStateEventArgs(
+                    track,
+                    reason,
+                    seconds,
+                    $"Track is unavailable because of VPN/network restrictions or other reasons. Next track starts in {seconds} second{(seconds == 1 ? "" : "s")}."));
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+
+        if (!ReferenceEquals(CurrentTrack, track) || IsPlaybackSuppressed)
+            return;
+
+        TrackPlaybackFailureStateChanged?.Invoke(this,
+            new PlayerTrackPlaybackFailureStateEventArgs(track, reason, 0, "Skipping unavailable track."));
+        await NextTrack();
     }
 
     protected async ValueTask<PlaylistTrack?> TrackAtOrDefaultAsync(int trackIndex)
@@ -906,6 +970,17 @@ public class PlayerService
         }
     }
 }
+
+public sealed record PlayerTrackPlaybackFailureEventArgs(
+    PlaylistTrack Track,
+    string Reason,
+    CancellationToken CancellationToken);
+
+public sealed record PlayerTrackPlaybackFailureStateEventArgs(
+    PlaylistTrack Track,
+    string Reason,
+    int SecondsRemaining,
+    string Message);
 
 public abstract class TrackCollectionBase : ObservableRangeCollection<PlaylistTrack>
 {

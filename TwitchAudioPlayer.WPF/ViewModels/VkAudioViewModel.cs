@@ -59,6 +59,14 @@ public partial class VkAudioViewModel : ObservableObject
                 if (isThisTrack) SelectedTrack = trackViewModel;
             }
         };
+        _player.TrackPlaybackFailureStateChanged += (_, args) =>
+            dispatcher.Invoke(() =>
+            {
+                var trackViewModel = AudioTrackViewModels.FirstOrDefault(viewModel =>
+                    ReferenceEquals(viewModel.AudioTrack, args.Track));
+                if (trackViewModel is not null)
+                    trackViewModel.PlaybackErrorMessage = args.Reason;
+            });
 
         AudioTrackViewModels = [];
         

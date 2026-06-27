@@ -30,6 +30,14 @@ public sealed class BrowserPlayerWindowService(BrowserPlayerWindow window)
         // Keep its minimize/restore lifecycle separate from the main window.
     }
 
+    public void OpenObsSetup(Window owner)
+    {
+        if (!window.IsVisible)
+            window.Show();
+
+        window.OpenObsSetupDialog(owner);
+    }
+
     private void PutPlayerAfterMainWindow(Window owner)
     {
         var playerHandle = new WindowInteropHelper(window).Handle;

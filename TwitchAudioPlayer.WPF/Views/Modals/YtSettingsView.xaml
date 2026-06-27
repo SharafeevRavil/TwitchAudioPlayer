@@ -29,18 +29,6 @@
                          Text="{Binding MaxMinutesLength, Mode=TwoWay}" />
             </Grid>
 
-            <Grid Margin="0, 0, 0, 10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"></ColumnDefinition>
-                    <ColumnDefinition Width="*"></ColumnDefinition>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10, 0"
-                           Text="YouTube playback:" />
-                <ComboBox Grid.Column="1" VerticalAlignment="Center" MinWidth="180"
-                          ItemsSource="{Binding YouTubePlaybackModes}"
-                          SelectedItem="{Binding YouTubePlaybackMode, Mode=TwoWay}" />
-            </Grid>
-
             <CheckBox Content="Prefer bundled yt-dlp for YouTube search (recommended)"
                       IsChecked="{Binding UseYtDlpForSearch, Mode=TwoWay}"
                       Margin="0,0,0,8" />
@@ -59,6 +47,18 @@
             <CheckBox Content="Different sound level for different sources"
                       IsChecked="{Binding UseSeparateSourceVolumes, Mode=TwoWay}"
                       Margin="0,0,0,14" />
+
+            <Grid Margin="0, 0, 0, 14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"></ColumnDefinition>
+                    <ColumnDefinition Width="*"></ColumnDefinition>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Text="OBS YouTube audio gain:" />
+                <TextBox Grid.Column="1" VerticalAlignment="Center" MinWidth="50"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                         Text="{Binding ObsYouTubeAudioGain, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
 
             <TextBlock Text="Настройки Twitch" FontSize="24" FontWeight="Bold" Margin="0,0,0,10" />
             <Grid Margin="0, 0, 0, 10">

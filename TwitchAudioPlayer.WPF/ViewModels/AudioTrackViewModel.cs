@@ -11,6 +11,9 @@ public partial class AudioTrackViewModel(PlaylistTrack? audioTrack, bool fillImg
 
     [ObservableProperty] private bool _fillImg = fillImg;
     [ObservableProperty] private string? _playPauseIcon = "Play";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPlaybackError))]
+    private string _playbackErrorMessage = "";
     public PlaylistTrack? AudioTrack { get; } = audioTrack;
 
     public string Author => AudioTrack?.GetArtistsString() ?? "Not Found Track";
@@ -32,6 +35,7 @@ public partial class AudioTrackViewModel(PlaylistTrack? audioTrack, bool fillImg
     }
 
     public int Index { get; set; }
+    public bool HasPlaybackError => !string.IsNullOrWhiteSpace(PlaybackErrorMessage);
 
     public event EventHandler<(AudioTrackViewModel ViewModel, bool IsPlaying)>? PlayPauseRequested;
 

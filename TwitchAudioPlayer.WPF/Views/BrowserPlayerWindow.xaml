@@ -29,7 +29,7 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="74" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="68" />
             </Grid.RowDefinitions>
 
             <Grid x:Name="TopChrome"
@@ -130,9 +130,22 @@
                         </Grid>
                     </Grid>
 
-                    <wv2:WebView2 x:Name="YoutubeWebView"
-                                  IsHitTestVisible="False"
-                                  Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <wv2:WebView2CompositionControl x:Name="YoutubeWebView"
+                                                    IsHitTestVisible="False"
+                                                    Visibility="{Binding IsYouTubeVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                    <Border Background="#CC000000"
+                            Padding="22"
+                            Visibility="{Binding IsPlaybackNoticeVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="{Binding PlaybackNoticeText}"
+                                   Foreground="White"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
 
                 </Grid>
             </Grid>
@@ -142,16 +155,18 @@
                     Background="#FF262626"
                     Padding="18,8"
                     ClipToBounds="True">
-                <Grid x:Name="TrackTitleViewport" ClipToBounds="True">
+                <Canvas x:Name="TrackTitleViewport"
+                        ClipToBounds="True"
+                        MinHeight="24"
+                        Height="{Binding ElementName=TrackTitleTextBlock, Path=ActualHeight}">
                     <TextBlock x:Name="TrackTitleTextBlock"
                                Text="{Binding OverlayTitle}"
-                               HorizontalAlignment="Left"
                                Foreground="White"
                                FontWeight="SemiBold"
                                TextWrapping="NoWrap"
                                helpers:MarqueeBehavior.IsEnabled="True"
                                FontSize="{Binding ElementName=VideoSurface, Path=ActualHeight, Converter={StaticResource VideoTitleFontSizeConverter}}" />
-                </Grid>
+                </Canvas>
             </Border>
 
             <Grid x:Name="ControlsPanel"
@@ -273,8 +288,7 @@
                   Grid.Row="4"
                   Height="68"
                   Background="#FF3A3A3A"
-                  Margin="0"
-                  Visibility="{Binding VkYouTube.IsResolverVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                  Margin="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="38" />
                     <RowDefinition Height="30" />
@@ -284,6 +298,16 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" MinWidth="70" />
                 </Grid.ColumnDefinitions>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Hidden" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding VkYouTube.IsResolverVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <CheckBox Grid.Row="0" Grid.Column="0" Margin="10,0,8,0" VerticalAlignment="Center"
                           Content="Auto"
                           ToolTip="Automatically play YouTube instead of VK"

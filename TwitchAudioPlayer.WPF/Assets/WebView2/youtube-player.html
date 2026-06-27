@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>YouTube Player</title>
     <style>
         html, body {
@@ -22,9 +23,15 @@
             position: absolute;
             inset: 0;
             background: #000;
+            overflow: hidden;
         }
 
         #player iframe {
+            position: absolute;
+            left: -1px;
+            top: -1px;
+            width: calc(100% + 2px) !important;
+            height: calc(100% + 2px) !important;
             pointer-events: none;
         }
 
@@ -94,6 +101,12 @@
             const iframe = document.querySelector("#player iframe");
             if (iframe) {
                 iframe.style.pointerEvents = "none";
+                iframe.referrerPolicy = "strict-origin-when-cross-origin";
+                iframe.style.position = "absolute";
+                iframe.style.left = "-1px";
+                iframe.style.top = "-1px";
+                iframe.style.width = "calc(100% + 2px)";
+                iframe.style.height = "calc(100% + 2px)";
             }
         } catch {
         }

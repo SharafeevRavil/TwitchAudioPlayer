@@ -81,9 +81,9 @@ public static class MarqueeBehavior
         transform.BeginAnimation(TranslateTransform.XProperty, null);
         transform.X = 0;
         textBlock.ClearValue(FrameworkElement.WidthProperty);
-        textBlock.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        var textWidth = textBlock.DesiredSize.Width;
+        var textWidth = MeasureTextWidth(textBlock);
         var availableWidth = viewport.ActualWidth;
+        CenterVertically(textBlock, viewport);
         if (availableWidth <= 0 || textWidth <= availableWidth + 1)
             return;
 
@@ -98,6 +98,37 @@ public static class MarqueeBehavior
         animation.KeyFrames.Add(new LinearDoubleKeyFrame(-distance, KeyTime.FromTimeSpan(hold + travel)));
         animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(hold + travel + resetHold)));
         transform.BeginAnimation(TranslateTransform.XProperty, animation);
+    }
+
+    private static void CenterVertically(TextBlock textBlock, FrameworkElement viewport)
+    {
+        if (textBlock.Parent is not Canvas)
+            return;
+
+        textBlock.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var textHeight = textBlock.DesiredSize.Height;
+        Canvas.SetTop(textBlock, Math.Max(0, (viewport.ActualHeight - textHeight) / 2));
+        Canvas.SetLeft(textBlock, 0);
+    }
+
+    private static double MeasureTextWidth(TextBlock textBlock)
+    {
+        var typeface = new Typeface(
+            textBlock.FontFamily,
+            textBlock.FontStyle,
+            textBlock.FontWeight,
+            textBlock.FontStretch);
+        var pixelsPerDip = VisualTreeHelper.GetDpi(textBlock).PixelsPerDip;
+        var formattedText = new FormattedText(
+            textBlock.Text ?? "",
+            System.Globalization.CultureInfo.CurrentUICulture,
+            textBlock.FlowDirection,
+            typeface,
+            textBlock.FontSize,
+            textBlock.Foreground,
+            pixelsPerDip);
+
+        return Math.Ceiling(formattedText.WidthIncludingTrailingWhitespace);
     }
 
     private static void Reset(TextBlock textBlock)

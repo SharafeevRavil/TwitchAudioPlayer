@@ -131,7 +131,6 @@ public class MusicOrderService
                 case YtTrackError.TrackZeroDuration:
                     invalidOrders.Add(orders[i]);
                     break;
-                case YtTrackError.FailedToGetStream:
                 case YtTrackError.FailedToGetInfo:
                     results.Add(CreateTrackResult(orders[i], track, error));
                     break;
@@ -193,7 +192,6 @@ public class MusicOrderService
             YtTrackError.YtNotFound => "YouTube video is unavailable.",
             YtTrackError.TrackZeroDuration => "Live streams and zero-duration videos are not supported.",
             YtTrackError.FailedToGetInfo => "Could not load YouTube video info. Retry later.",
-            YtTrackError.FailedToGetStream => "Could not load YouTube audio stream. Retry later.",
             _ => "Could not load YouTube track."
         };
 }

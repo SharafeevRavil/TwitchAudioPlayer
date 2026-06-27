@@ -63,6 +63,11 @@
                        Foreground="{DynamicResource MaterialDesignBody}" />
             <TextBlock Text="{Binding Author}" FontSize="12"
                        Foreground="{DynamicResource MaterialDesignBodyLight}" />
+            <TextBlock Text="{Binding PlaybackErrorMessage}"
+                       FontSize="11"
+                       Foreground="#FFFF3355"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasPlaybackError, Converter={StaticResource BoolToVisibilityConverter}}" />
         </StackPanel>
 
         <!-- Длительность трека -->
