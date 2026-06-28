@@ -14,24 +14,32 @@
             background: transparent;
         }
 
-        #player, #shield {
+        #player-frame, #player, #shield {
             width: 100%;
             height: 100%;
         }
 
-        #player {
+        #player-frame {
             position: absolute;
             inset: 0;
             background: #000;
             overflow: hidden;
         }
 
-        #player iframe {
+        #player {
             position: absolute;
-            left: -1px;
-            top: -1px;
-            width: calc(100% + 2px) !important;
-            height: calc(100% + 2px) !important;
+            inset: 0;
+        }
+
+        #player-frame iframe {
+            position: absolute;
+            left: 0;
+            top: 0;
+            max-width: none !important;
+            max-height: none !important;
+            width: 100% !important;
+            height: 100% !important;
+            border: 0;
             pointer-events: none;
         }
 
@@ -46,7 +54,9 @@
     </style>
 </head>
 <body>
-<div id="player"></div>
+<div id="player-frame">
+    <div id="player"></div>
+</div>
 <div id="shield"></div>
 <script>
     let player;
@@ -98,18 +108,48 @@
 
     function clearYouTubeChrome() {
         try {
-            const iframe = document.querySelector("#player iframe");
+            const iframe = document.querySelector("#player-frame iframe");
             if (iframe) {
                 iframe.style.pointerEvents = "none";
                 iframe.referrerPolicy = "strict-origin-when-cross-origin";
                 iframe.style.position = "absolute";
-                iframe.style.left = "-1px";
-                iframe.style.top = "-1px";
-                iframe.style.width = "calc(100% + 2px)";
-                iframe.style.height = "calc(100% + 2px)";
+                iframe.style.border = "0";
+                iframe.style.maxWidth = "none";
+                iframe.style.maxHeight = "none";
+                fitYouTubeIframe(iframe);
             }
         } catch {
         }
+    }
+
+    function fitYouTubeIframe(iframe) {
+        const container = document.getElementById("player-frame");
+        if (!container) {
+            return;
+        }
+
+        const bounds = container.getBoundingClientRect();
+        if (bounds.width <= 0 || bounds.height <= 0) {
+            return;
+        }
+
+        const targetRatio = 16 / 9;
+        const bleed = 6;
+        let width = bounds.width;
+        let height = bounds.height;
+
+        if (width / height > targetRatio) {
+            height = width / targetRatio;
+        } else {
+            width = height * targetRatio;
+        }
+
+        width += bleed * 2;
+        height += bleed * 2;
+        iframe.style.setProperty("left", `${(bounds.width - width) / 2}px`, "important");
+        iframe.style.setProperty("top", `${(bounds.height - height) / 2}px`, "important");
+        iframe.style.setProperty("width", `${width}px`, "important");
+        iframe.style.setProperty("height", `${height}px`, "important");
     }
 
     function onYouTubeIframeAPIReady() {

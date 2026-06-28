@@ -113,6 +113,11 @@ public partial class BrowserPlayerWindow : Window
     private const int DwmwaBorderColor = 34;
     private const uint DwmWindowCornerDoNotRound = 1;
     private const uint DwmColorNone = 0xFFFFFFFE;
+    private static readonly IntPtr HwndBottom = new(1);
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpNoOwnerZOrder = 0x0200;
     private const double AspectRatio = 16d / 9d;
     private const int DefaultPlayerChromeHeight = 222;
 
@@ -150,7 +155,6 @@ public partial class BrowserPlayerWindow : Window
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
         Activated += OnActivated;
-        SizeChanged += OnSizeChanged;
         Closing += OnClosing;
         Closed += OnClosed;
         _viewModel.PinChanged += ViewModelOnPinChanged;
@@ -227,12 +231,19 @@ public partial class BrowserPlayerWindow : Window
             ? new System.Windows.Rect(Left, Top, Width, Height)
             : RestoreBounds;
 
-        WindowState = WindowState.Normal;
-        var virtualRight = SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth;
-        var virtualBottom = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight;
-        Left = virtualRight + 64;
-        Top = virtualBottom + 64;
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+
+        if (!IsVisible)
+            Show();
+
+        WindowTopmostHelper.Apply(this, false);
+        SendBehindOtherWindows();
         ActivateFallbackWindow();
+
+        _logger.Information(
+            "Parked browser player window for OBS capture behind other windows: state={State}, left={Left:0.##}, top={Top:0.##}, width={Width:0.##}, height={Height:0.##}",
+            WindowState, Left, Top, Width, Height);
     }
 
     public void RestoreFromObsCaptureParking()
@@ -253,6 +264,18 @@ public partial class BrowserPlayerWindow : Window
         WindowState = _windowStateBeforeParking == WindowState.Maximized
             ? WindowState.Maximized
             : WindowState.Normal;
+
+        ApplyTopmost(_viewModel.IsPinned);
+    }
+
+    private void SendBehindOtherWindows()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+            return;
+
+        SetWindowPos(handle, HwndBottom, 0, 0, 0, 0,
+            SwpNoMove | SwpNoSize | SwpNoActivate | SwpNoOwnerZOrder);
     }
 
     private void ActivateFallbackWindow()
@@ -638,24 +661,6 @@ public partial class BrowserPlayerWindow : Window
         return requestId != 0 && requestId == _activeRequestId;
     }
 
-    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (_isResizingToAspect || WindowState != WindowState.Normal)
-            return;
-
-        _isResizingToAspect = true;
-        try
-        {
-            var targetHeight = Width / AspectRatio + GetPlayerChromeHeight();
-            if (Math.Abs(Height - targetHeight) > 1)
-                Height = Math.Max(MinHeight, targetHeight);
-        }
-        finally
-        {
-            _isResizingToAspect = false;
-        }
-    }
-
     private void ScheduleAspectCorrection() =>
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(CorrectAspectRatio));
 
@@ -1030,4 +1035,14 @@ public partial class BrowserPlayerWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint uFlags);
 }
